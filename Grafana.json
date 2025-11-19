@@ -1,0 +1,183 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+
+    {
+      "type": "table",
+      "title": "CrashLoopBackOff Pods",
+      "id": 1,
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "Replace with original UID" },
+      "targets": [
+        {
+          "expr": "sum by(namespace, pod) (kube_pod_container_status_waiting_reason{reason=\"CrashLoopBackOff\", cluster=\"$cluster\", namespace=~\"$namespace\"})",
+          "refId": "A",
+          "format": "table"
+        }
+      ],
+      "options": { "showHeader": true }
+    },
+
+    {
+      "type": "table",
+      "title": "Container Restarts (rate)",
+      "id": 2,
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "Replace with original UID" },
+      "targets": [
+        {
+          "expr": "sum by (namespace, pod, container) (rate(kube_pod_container_status_restarts_total{cluster=\"$cluster\", namespace=~\"$namespace\"}[5m]))",
+          "refId": "A",
+          "format": "table",
+          "legendFormat": "{{namespace}}/{{pod}}/{{container}}"
+        }
+      ]
+    },
+
+    {
+      "type": "table",
+      "title": "Not Enough Pods Running (desired vs available)",
+      "id": 3,
+      "gridPos": { "x": 0, "y": 5, "w": 24, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "Replace with original UID" },
+      "targets": [
+        {
+          "expr": "sum by (deployment) (kube_deployment_spec_replicas{cluster=\"$cluster\", namespace=~\"$namespace\"})",
+          "legendFormat": "desired",
+          "refId": "A",
+          "format": "table"
+        },
+        {
+          "expr": "sum by (deployment) (kube_deployment_status_replicas_available{cluster=\"$cluster\", namespace=~\"$namespace\"})",
+          "legendFormat": "available",
+          "refId": "B",
+          "format": "table"
+        },
+        {
+          "expr": "sum by (deployment) (kube_deployment_spec_replicas{cluster=\"$cluster\", namespace=~\"$namespace\"} - kube_deployment_status_replicas_available{cluster=\"$cluster\", namespace=~\"$namespace\"})",
+          "legendFormat": "missing",
+          "refId": "C",
+          "format": "table"
+        }
+      ],
+      "options": { "showHeader": true }
+    },
+
+    {
+      "type": "stat",
+      "title": "High 500s Error Rate (%)",
+      "id": 4,
+      "gridPos": { "x": 0, "y": 11, "w": 8, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "Replace with original UID" },
+      "targets": [
+        {
+          "expr": "(sum(rate(http_server_request_second_count{cluster=\"$cluster\", code=~\"5..\"}[5m])) / sum(rate(http_server_request_second_count{cluster=\"$cluster\"}[5m]))) * 100",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": 0 },
+              { "color": "orange", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          }
+        }
+      }
+    },
+
+    {
+      "type": "timeseries",
+      "title": "High Latency (p95) – Replace bucket when known",
+      "id": 5,
+      "gridPos": { "x": 8, "y": 11, "w": 16, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "Replace with original UID" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_request_seconds_bucket{cluster=\"$cluster\", namespace=~\"$namespace\"}[5m])))",
+          "legendFormat": "p95 latency",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 3,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green" },
+              { "color": "orange", "value": 0.3 },
+              { "color": "red", "value": 1.0 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "legend": { "showLegend": true, "placement": "bottom" },
+        "tooltip": { "mode": "single", "sort": "none" }
+      }
+    }
+
+  ],
+
+  "schemaVersion": 41,
+  "tags": ["api-health", "aks", "poc"],
+  "templating": {
+    "list": [
+      {
+        "type": "datasource",
+        "name": "datasource",
+        "query": "prometheus",
+        "current": { "text": "Add azure monitor workspace", "value": "Azure monitor workspace" },
+        "hide": 2
+      },
+      {
+        "name": "cluster",
+        "label": "cluster",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "Replace with original UID" },
+        "query": "label_values(kube_node_info, cluster)",
+        "refresh": 2,
+        "current": { "text": "AKS CLUSTER NAME", "value": "AKS CLUSTER NAME" }
+      },
+      {
+        "name": "namespace",
+        "label": "namespace",
+        "type": "query",
+        "includeAll": true,
+        "allValue": ".*",
+        "datasource": { "type": "prometheus", "uid": "Replace with original UID" },
+        "query": "label_values(kube_pod_info{cluster=\"$cluster\"}, namespace)",
+        "refresh": 2,
+        "current": { "text": "ns-01", "value": "ns-01" }
+      }
+    ]
+  },
+
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": { "refresh_intervals": ["5s", "10s", "30s", "1m", "5m"] },
+  "timezone": "browser",
+  "title": "API Health – AKS POC",
+  "uid": "api-health-aks-poc"
+}
