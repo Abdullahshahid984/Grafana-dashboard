@@ -1,33 +1,34 @@
-AKS Backup Cost Summary (Operational vs Vault Tier) – East US 2
-1. Operational Tier (Current Estimation)
+AKS Backup Pricing Analysis – Operational Tier vs Vault Tier (East US 2)
 
-Configuration:
+This document summarizes the estimated monthly cost of Azure AKS Backup using both Operational Tier and Vault Tier configurations.
+The analysis is based on:
 
 6 AKS Clusters
 
 46 Namespaces
+
+Region: East US 2
+
+Storage Account: Standard GPv2, Hot Tier, ZRS, 1 TB capacity
+
+1. Operational Tier – Cost Summary
+Configuration
 
 Backup Policy Type: Operational Tier
 
-Storage Account: Standard GPv2, Hot tier, ZRS, 1 TB
+6 AKS Clusters × 46 Namespaces
 
-Operations cost for Storage Account: $24.73/month
+Storage: Standard GPv2, Hot, ZRS
 
-Cost Breakdown:
+Storage operations + capacity estimated at $24.73/month
 
-Backup Cost: 46 namespaces × $12 = $3,312.00/month
-
-Storage Account Cost: $24.73/month
-
-Total Monthly Cost: $3,336.73
-
-2. Vault Tier (With Retention + Data Churn Considerations)
-
-Configuration:
-
-6 AKS Clusters
-
-46 Namespaces
+Cost Breakdown
+Component	Monthly Cost
+Namespace Backup (46 × $12)	$3,312.00
+Storage Account (1 TB, operations)	$24.73
+Total Monthly Cost	$3,336.73
+2. Vault Tier – Cost Summary
+Configuration
 
 Backup Policy Type: Vault Tier
 
@@ -35,32 +36,32 @@ Retention: 182 daily backups
 
 Cluster Size: 500 GB
 
-Average Daily Churn: Moderate
+Daily Churn: Moderate
 
-Redundancy: ZRS
+Backup Storage Redundancy: ZRS
 
-Storage Account (same 1 TB Hot ZRS): $24.73/month
+Storage Account (same config): $24.73/month
 
-Cost Breakdown:
-
-Backup Cost: 46 namespaces × $12 = $3,312.00/month
-
-Backup Storage (Standard tier): ~2,652.5 GB per month = $74.27/month
-
-Storage Account Cost: $24.73/month
-
-Total Monthly Cost: $3,386.27
-
-High-Level Comparison
-Item	Operational Tier	Vault Tier
-Namespace Backup Cost	$3,312.00	$3,312.00
-Policy/Storage Cost	$24.73	$24.73
-Vault Storage Add-on	–	$74.27
+Cost Breakdown
+Component	Monthly Cost
+Namespace Backup (46 × $12)	$3,312.00
+Backup Storage (Standard Tier, ~2,652.5 GB/mo)**	$74.27
+Storage Account (1 TB + operations)**	$24.73
+Total Monthly Cost	$3,386.27
+3. Comparison Summary
+Aspect	Operational Tier	Vault Tier
+Namespace Backup	$3,312.00	$3,312.00
+Additional Backup Storage	–	$74.27
+Storage Account Cost	$24.73	$24.73
 Total Monthly Cost	$3,336.73	$3,386.27
-Summary
+Difference:
 
-Operational Tier: ~$3,336.73/month
+Vault Tier is approximately $49.54/month more expensive due to additional retained backup data (~2.6 TB/month).
 
-Vault Tier: ~$3,386.27/month
+Conclusion
 
-Difference: Vault Tier is ~$49.54/month more expensive due to additional protected backup data (~2.6 TB/month) created by retention + churn.
+Operational Tier is more cost-effective for short-term or minimal retention.
+
+Vault Tier becomes relevant when long-term retention or compliance requirements are needed, but comes with an additional storage cost.
+
+In the current configuration, Operational Tier is slightly cheaper, while Vault Tier provides enhanced protection with retention-based storage overhead.
