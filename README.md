@@ -61,6 +61,3 @@ This document summarizes the estimated monthly cost of Azure AKS Backup using bo
 
 Vault Tier is approximately **$49.54/month** more expensive due to additional retained backup data (around 2.6 TB per month).
 
-
-✅ A PDF version
-🚀 A diagram for the backup architecture
