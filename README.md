@@ -1,4 +1,4 @@
-# **AKS Backup – Deep Technical Overview**
+# **AKS Backup  Deep Technical Overview**
 
 This document explains **Azure AKS Backup** — what it does, why it matters, how it works internally, and why Kubernetes requires a dedicated backup strategy beyond GitOps, YAMLs, or pipelines.
 
