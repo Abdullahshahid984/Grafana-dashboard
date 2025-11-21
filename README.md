@@ -78,8 +78,8 @@ Real-world engineering introduces **configuration drift**:
 
 If you restore from Git alone:
 
-❌ You won’t get the exact working cluster state back.
-❌ Secrets, PV data, CRDs, runtime mutations are lost.
+You won’t get the exact working cluster state back.
+Secrets, PV data, CRDs, runtime mutations are lost.
 
 **AKS Backup solves this gap.**
 
