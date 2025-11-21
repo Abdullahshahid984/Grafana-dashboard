@@ -1,6 +1,6 @@
 # **AKS Backup  Deep Technical Overview**
 
-This document explains **Azure AKS Backup** — what it does, why it matters, how it works internally, and why Kubernetes requires a dedicated backup strategy beyond GitOps, YAMLs, or pipelines.
+This document explains **Azure AKS Backup**  what it does, why it matters, how it works internally, and why Kubernetes requires a dedicated backup strategy beyond GitOps, YAMLs, or pipelines.
 
 Most engineers assume “containers are stateless,” but modern Kubernetes clusters have become **highly stateful**. As a result, backing up runtime state, configuration, and storage is now essential.
 
