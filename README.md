@@ -189,14 +189,14 @@ Azure automatically enforces cleanup.
 
 ## **5.1 Snapshot Backup (Local Subscription)**
 
-✔ Fast
-✔ Cheap
-✔ Perfect for short-term recovery
+Fast
+Cheap
+Perfect for short-term recovery
 
 But:
-❌ Can be deleted if subscription is compromised
-❌ Not ransomware-protected
-❌ No tenant-level isolation
+Can be deleted if subscription is compromised
+Not ransomware-protected
+No tenant-level isolation
 
 ---
 
@@ -393,4 +393,3 @@ AKS Backup = Actual State**
 Together, they form a complete safety and recovery strategy.
 
 
-Just tell me!
