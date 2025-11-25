@@ -44,8 +44,7 @@ Microsoft.DataProtection
    * All namespaces
    * Selected namespaces
    * Label selector
-7. Enable **PVC backup** (optional but recommended).
-8. Click **Enable**
+7. Click on create button
 
 ---
 
