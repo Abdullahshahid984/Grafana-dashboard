@@ -118,7 +118,6 @@ To restore:
    * Namespace restore
    * Full cluster restore
    * Resources by label
-   * PVC only
 6. Select restore target:
 
    * Same AKS cluster
