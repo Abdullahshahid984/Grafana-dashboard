@@ -11,8 +11,8 @@
 3. Register these providers (if not already):
 
 ```
-az provider register --namespace Microsoft.ContainerService
-az provider register --namespace Microsoft.DataProtection
+Microsoft.ContainerService
+Microsoft.DataProtection
 ```
 
 ---
