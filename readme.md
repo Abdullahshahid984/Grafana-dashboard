@@ -58,7 +58,7 @@ Microsoft.DataProtection
    * Select:
 
      * Snapshot backup
-     * Vault backup (recommended)
+     * Vault backup 
 3. Save policy.
 
 ---
