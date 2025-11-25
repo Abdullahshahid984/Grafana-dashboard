@@ -7,7 +7,7 @@
 # **1. Prerequisites**
 
 1. Have an existing AKS Cluster.
-2. Ensure you have **Owner** or **Contributor + Backup Operator** permissions.
+2. Ensure you have **Owner** or **Contributor** permissions.
 3. Register these providers (if not already):
 
 ```
