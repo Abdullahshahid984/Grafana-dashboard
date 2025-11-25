@@ -8,7 +8,7 @@
 
 1. Have an existing AKS Cluster.
 2. Ensure you have **Owner** or **Contributor** permissions.
-3. Register these providers (if not already):
+3. Register these providers (if not already by contect cloud team):
 
 ```
 Microsoft.ContainerService
