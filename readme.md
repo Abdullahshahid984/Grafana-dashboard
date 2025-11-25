@@ -27,7 +27,7 @@ az provider register --namespace Microsoft.DataProtection
    * Subscription
    * Resource Group
    * Vault Name
-   * Region (must match AKS region)
+   * Region (eastus2 or cus)
 5. Click **Review + Create → Create**
 
 ---
