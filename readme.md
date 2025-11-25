@@ -44,7 +44,7 @@ Microsoft.DataProtection
    * All namespaces
    * Selected namespaces
    * Label selector
-7. Click on create button
+7. Click Review + Create → Create
 
 ---
 
