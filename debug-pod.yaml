@@ -1,16 +1,19 @@
+# debug.yaml
 apiVersion: v1
 kind: Pod
 metadata:
   name: network-test-pod
 spec:
+  automountServiceAccountToken: false
   containers:
   - name: debug
-    image: mcr.microsoft.com/aks/fundamental/base-ubuntu:v0.0.11
-    command: ["/bin/bash", "-c", "sleep 36000"]
+    image: mcr.microsoft.com/aks/debug:latest
+    command: ["/bin/sh", "-c", "sleep 3600"]
     securityContext:
       runAsUser: 1000
       runAsGroup: 3000
+      runAsNonRoot: true
       allowPrivilegeEscalation: false
       capabilities:
-        drop: ["ALL"]
-  restartPolicy: Never
+        drop:
+          - ALL
