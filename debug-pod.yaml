@@ -7,7 +7,7 @@ spec:
   automountServiceAccountToken: false
   containers:
   - name: debug
-    image: mcr.microsoft.com/aks/debug:latest
+    image: mcr.microsoft.com/oss/kubernetes/e2e-test-images/busybox:1.29
     command: ["/bin/sh", "-c", "sleep 3600"]
     securityContext:
       runAsUser: 1000
