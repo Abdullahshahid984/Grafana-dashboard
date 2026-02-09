@@ -35,10 +35,7 @@ Now I need to extend the implementation with **Azure Backup for AKS**.
 
      * create the backup policy.tf
      * create the backup instance.tf
-     * Passes required variables (AKS cluster ID, vault ID, storage account, environment, location, etc.)
-   * Follow Terraform best practices:
-     * Clear variable definitions
-     * Environment-based naming
+   * Follow Terraform best practices
 
 4. **Configuration Files**
 
@@ -68,9 +65,5 @@ Now I need to extend the implementation with **Azure Backup for AKS**.
 
   * Backup policy
   * Backup instance
-  * Parent/root module
+  * Parent module
 * Updated `instance_conf.yaml` and `conf.yaml` for **dev**
-* Brief explanation of how the policy and instance are linked
-
-
-Just tell me 👍
