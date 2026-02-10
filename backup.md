@@ -1,7 +1,5 @@
-Thanks for calling this out. You’re right that a complete AKS backup setup includes Trusted Access, a backup policy, and a backup instance.
+Good question. You’re correct that backup_vault is not referenced by azurerm_kubernetes_cluster_extension, and it is not required for creating the extension itself.
 
-This PR is intentionally scoped to only provision the Backup Vault and install the AKS Backup Extension. At this stage, no backups are being configured or scheduled, so Trusted Access, the backup policy, and the backup instance are not required yet.
+The backup_vault field is used by the Backup Vault resource (azurerm_data_protection_backup_vault) defined in this module and is intentionally part of the shared config. It is included here to keep the configuration consistent and to support the upcoming backup policy and backup instance, which will consume the vault when backups are enabled.
 
-Trusted Access is only needed when creating the backup instance, which is when Azure Backup actually begins accessing the cluster. These components will be added in a follow-up PR once the baseline resources are in place.
-
-Regarding the config field, backup_vault is currently forward-looking and is not consumed by azurerm_kubernetes_cluster_extension. It will be used when the backup policy and backup instance are introduced, or can be removed from this PR if preferred.
+At this stage, the extension and the vault are being provisioned independently as baseline resources.
