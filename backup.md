@@ -1,69 +1,7 @@
-I have already created Terraform code for the following Azure resources:
+Thanks for calling this out. You’re right that a complete AKS backup setup includes Trusted Access, a backup policy, and a backup instance.
 
-* AKS Backup Extension
-* Azure Storage Account
-* Azure Blob Container
+This PR is intentionally scoped to only provision the Backup Vault and install the AKS Backup Extension. At this stage, no backups are being configured or scheduled, so Trusted Access, the backup policy, and the backup instance are not required yet.
 
-Now I need to extend the implementation with **Azure Backup for AKS**.
+Trusted Access is only needed when creating the backup instance, which is when Azure Backup actually begins accessing the cluster. These components will be added in a follow-up PR once the baseline resources are in place.
 
-#### **Requirements**
-
-1. **Terraform – Backup Policy**
-
-   * Create an AKS backup policy using Terraform.
-   * Backup frequency: **every 4 hours**.
-   * Retention should follow Azure best practices (hourly, daily, and weekly retention where applicable).
-   * Policy must be compatible with AKS backup extension.
-
-2. **Terraform – Backup Instance**
-
-   * Create a backup instance that:
-
-     * Protects **all namespaces** in the AKS cluster.
-     * Includes **Kubernetes secrets**.
-     * Includes all required Kubernetes resources for full cluster recovery (configmaps, persistent volumes if applicable).
-   * Ensure the backup instance references:
-
-     * The backup policy
-     * Storage account & container
-     * AKS cluster resource ID
-     * Backup vault
-
-3. **Terraform Parent (Root) Module**
-
-   * Create parent/root Terraform file** that:
-
-     * create the backup policy.tf
-     * create the backup instance.tf
-   * Follow Terraform best practices
-
-4. **Configuration Files**
-
-   * Update the following YAML files specifically for the **dev environment**:
-
-     * `instance_conf.yaml`
-     * `conf.yaml`
-   * These files should include:
-
-     * Environment: `dev`
-     * Backup schedule (4-hour interval)
-     * Namespace selector: all namespaces
-     * Resource inclusion settings (secrets enabled)
-     * Storage container and backup vault references
-
-5. **General Expectations**
-
-   * Use **clean, production-grade Terraform code**.
-   * Follow Azure naming conventions.
-   * Use variables instead of hardcoded values.
-   * Add comments explaining important sections.
-   * Assume this will be deployed via CI/CD pipeline.
-
-#### **Deliverables**
-
-* Terraform code for:
-
-  * Backup policy
-  * Backup instance
-  * Parent module
-* Updated `instance_conf.yaml` and `conf.yaml` for **dev**
+Regarding the config field, backup_vault is currently forward-looking and is not consumed by azurerm_kubernetes_cluster_extension. It will be used when the backup policy and backup instance are introduced, or can be removed from this PR if preferred.
