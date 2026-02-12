@@ -1,7 +1,3 @@
-Here’s a **short and clean version**:
-
----
-
 ## Istio 1.27 – Key Changes (Summary)
 
 ### 🔹 Major Changes
