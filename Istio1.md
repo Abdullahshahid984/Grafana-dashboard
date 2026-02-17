@@ -1,4 +1,5 @@
-kubectl label namespace istio-upgrade-testing istio.io/rev=stable-asm-1-27 --overwrite
+kubectl label namespace istio-upgrade-testing istio.io/rev=prod-stable
+
 
 
 kubectl get ns istio-upgrade-testing --show-labels
