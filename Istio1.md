@@ -14,3 +14,6 @@ kubectl label namespace istio-upgrade-testing istio.io/rev=prod-stable
 
 kubectl rollout restart deployment -n istio-upgrade-testing
 
+
+mcr.microsoft.com/oss/v2/istio/proxyv2:v1.27.4-2
+
