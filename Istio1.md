@@ -1,59 +1,7 @@
-## Istio 1.27 – Key Changes (Summary)
+Hi,
 
-### 🔹 Major Changes
+I’m currently working on the Istio upgrade in the POC environment. While reviewing the cluster, I noticed that several Azure Istio CNI node pods are running in the aks-istio-system namespace.
 
-**1. Native Sidecars**
+Could you please confirm if this is expected as part of the current configuration? I would like to ensure everything is correct before proceeding with the upgrade from asm-1-26 to asm-1-27.
 
-* Enabled by default (`ENABLE_NATIVE_SIDECARS=true`)
-* `istio-proxy` runs as init container
-* May break OPA, Kyverno, security scanners, or custom webhooks
-* Disable per workload if needed:
-  `sidecar.istio.io/native-side: "false"`
-* **Strongly recommended: test before upgrade**
-
----
-
-**2. Telemetry Removal**
-
-* Lightstep & OpenCensus removed
-* **Action:** Migrate to OpenTelemetry
-
----
-
-**3. Traffic Distribution Updates**
-
-* New modes: `PreferClose`, `PreferSameNode`, `PreferSameZone`
-* May change routing in multi-AZ setups
-* **Action:** Review affected services
-
----
-
-**4. Retry Budgets Added**
-
-* Available in `DestinationRule`
-* Prevents retry storms
-* Recommended for high-traffic services
-
----
-
-### 🔹 Improvements 
-
-**5. Multiple TLS Certificates in Gateway**
-
-* RSA + ECDSA supported together
-* Better performance & compatibility
-
-**6. Ambient Mesh & CNI Enhancements**
-
-* nftables support
-* More stable ztunnel
-* Reduced traffic bypass risk
-
-**7. Security Enhancements**
-
-* Stable ClusterTrustBundle
-* CRL support
-* External SDS providers
-* Post-Quantum TLS support
-
-
+Thank you.
