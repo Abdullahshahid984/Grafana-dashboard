@@ -1,55 +1,187 @@
-#!/bin/bash
+Terraform Implementation Requirement
+AKS Backup Policy & Backup Instance Deployment (Root Module Only)
+Current State
 
-set -e
+The following Azure resources are already provisioned using Terraform in the root module:
 
-# Dependencies: yq, envsubst
+Azure Storage Account
 
-if test -z "$1"; then
-  echo "Usage: $0 PLATFORM_INSTANCE_DIR" 1>&2
-  echo ""
-  echo "Configures a terraform root module for a platform instance"
-  exit 1
-fi
-INSTANCE_ROOT=$(readlink -f "$1")
+Blob Container
 
-INSTANCE_CONF="$INSTANCE_ROOT/conf.yaml"
-if test ! -f "$INSTANCE_CONF"; then
-  echo "instance config ($INSTANCE_CONF) not found" 1>&2
-  exit 1
-fi
+Azure Data Protection Backup Vault
 
-SCRIPT_ABS_PATH=$(readlink -f "$0")
-SCRIPT_DIR=$(dirname "$SCRIPT_ABS_PATH")
-PLATFORM_ROOT=$(dirname "$SCRIPT_DIR")
+AKS Cluster
 
-MODULE_MAIN_ROOT="$PLATFORM_ROOT/terraform/modules/main"
-MODULE_POLICY_ROOT="$PLATFORM_ROOT/terraform/modules/policy"
+AKS Backup Extension
 
-TERRAFORM_ROOT="$INSTANCE_ROOT/stages/terraform_main"
+Snapshot Resource Group
 
-mkdir -p "$TERRAFORM_ROOT"
+No child modules are being used. All resources must be implemented directly in the root module.
 
-INSTANCE_BOILERPLATE_ROOT="$MODULE_MAIN_ROOT/instance_boilerplate"
+Objective
 
-# Link is overwritten by terraform init -upgrade anyway
-cp "$INSTANCE_BOILERPLATE_ROOT/.terraform.lock.hcl" "$TERRAFORM_ROOT"
+Deploy and configure:
 
-WORKSPACE_YQ_PATH='.tfc_workspaces.main'
-export BFHAKS_WORKSPACE="$(yq "$WORKSPACE_YQ_PATH" < "$INSTANCE_CONF")"
-if test -z "$BFHAKS_WORKSPACE" -o "null" = "$BFHAKS_WORKSPACE"; then
-  echo "ERROR: yq did not find ($WORKSPACE_YQ_PATH) in ($INSTANCE_CONF)" 1>&2
-  exit 1
-fi
-cat "$INSTANCE_BOILERPLATE_ROOT/main.tf.tmpl" | envsubst '$BFHAKS_WORKSPACE' > "$TERRAFORM_ROOT/main.tf"
+AKS Backup Policy
 
-(
-  cd "$TERRAFORM_ROOT"
-  ln -fs "$INSTANCE_CONF" .
+AKS Backup Instance
 
-  # Link the primary modules so that Terraform Cloud runners will have them
-  ln -fs "$MODULE_MAIN_ROOT" .
-  ln -fs "$MODULE_POLICY_ROOT" .
-)
+The solution must provide full-cluster protection using Operational Tier backups running every 4 hours.
 
-echo "Terraform root module configured in ($TERRAFORM_ROOT). From there run:"
-echo "  terraform init/plan/apply as normal"
+The configuration must include:
+
+All namespaces
+
+All Kubernetes resource types
+
+All Secrets
+
+Cluster-scoped resources
+
+Persistent volumes via snapshot
+
+No exclusions should be applied unless explicitly defined.
+
+Backup Policy Requirements
+
+The AKS Backup Policy must:
+
+Use Operational Tier
+
+Run backups every 4 hours
+
+Use UTC time zone
+
+Retain backups for 30 days (P30D)
+
+Support continuous protection of AKS workloads
+
+Be compatible with cluster-scoped and namespaced resources
+
+Expected behavior:
+
+Backup trigger interval: PT4H
+
+Retention: 30 days
+
+Operational storage tier
+
+Backup Instance Requirements
+
+The Backup Instance must:
+
+Protect the entire AKS cluster
+
+Use the previously created Backup Vault
+
+Use the previously created Snapshot Resource Group
+
+Bind to the defined Backup Policy
+
+Enable volume snapshot capability
+
+Include cluster-scoped resources
+
+Configuration expectations:
+
+excluded_namespaces              = []
+excluded_resource_types          = []
+included_namespaces              = ["*"]
+included_resource_types          = ["*"]
+label_selectors                  = []
+cluster_scoped_resources_enabled = true
+volume_snapshot_enabled          = true
+
+Expected protection scope:
+
+All namespaces
+
+All resource types (including Secrets)
+
+All cluster-scoped objects (CRDs, ClusterRoles, etc.)
+
+All Persistent Volumes via Azure Disk snapshots
+
+Security & RBAC Requirements
+
+To ensure proper operation of Azure Data Protection with AKS, the following permissions must be configured.
+
+1. Trusted Access Binding
+
+Bind the Backup Vault to the AKS cluster using:
+
+Role: Microsoft.DataProtection/backupVaults/backup-operator
+
+Source resource: Backup Vault
+
+Target resource: AKS Cluster
+
+Purpose:
+Allow the Backup Vault to operate on the AKS cluster.
+
+2. AKS Backup Extension Permissions
+
+Grant the AKS Backup Extension identity:
+
+Role: Storage Account Contributor
+
+Scope: Storage Account
+
+Purpose:
+Allow the extension to write backup metadata and operational data.
+
+3. Backup Vault Managed Identity Permissions
+
+On AKS Cluster:
+
+Reader role
+
+On Snapshot Resource Group:
+
+Reader
+
+Disk Snapshot Contributor
+
+Data Operator for Managed Disks
+
+On Storage Account:
+
+Storage Blob Data Contributor
+
+Purpose:
+Allow the Backup Vault to:
+
+Read cluster metadata
+
+Create and manage disk snapshots
+
+Write backup data to blob storage
+
+4. AKS Cluster Managed Identity Permission
+
+On Snapshot Resource Group:
+
+Contributor
+
+Purpose:
+Allow AKS to manage snapshot lifecycle operations during backup workflows.
+
+Implementation Constraints
+
+All resources must be defined in the root module only.
+
+No child modules.
+
+No dynamic logic required.
+
+No conditional deployment.
+
+Explicit depends_on must be added where necessary to avoid race conditions.
+
+Production-ready configuration.
+
+Clear resource naming.
+
+No exclusions configured.
+
+Full cluster protection enabled.
