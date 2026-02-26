@@ -1,191 +1,29 @@
-AKS Backup Implementation – Root Module Only (PoC Environment)
-
-I am implementing AKS Backup in a Proof of Concept (PoC) environment using Terraform.
-
-Current State
-
-The following Azure resources are already provisioned in the root module only:
-
-Azure Storage Account
-
-Blob Container
-
-Azure Data Protection Backup Vault
-
-AKS Cluster
-
-AKS Backup Extension
-
-Snapshot Resource Group
-
-No child modules are used and none should be created.
-
-Objective
-
-Deploy and configure:
-
-AKS Backup Policy
-
-AKS Backup Instance
-
-The implementation must provide full-cluster protection with:
-
-Operational Tier backups
-
-Backup frequency: every 4 hours (PT4H)
-
-Retention: 30 days (P30D)
-
-UTC time zone
-
-Full namespace protection
-
-All resource types included
-
-All Secrets included
-
-Cluster-scoped resources enabled
-
-Persistent volume snapshots enabled
-
-No exclusions configured
-
-All resources must be implemented in the root module.
-
-Backup Policy Requirements
-
-The AKS Backup Policy must:
-
-Use Operational Tier
-
-Run every 4 hours (PT4H)
-
-Retain data for 30 days (P30D)
-
-Use UTC time zone
-
-Support cluster-scoped resources
-
-Support volume snapshot capability
-
-Expected Behavior:
-
-Backups run automatically every 4 hours
-
-Data retained for 30 days
-
-Compatible with namespaced and cluster-scoped resources
-
-Backup Instance Requirements
-
-The Backup Instance must:
-
-Protect the entire AKS cluster
-
-Bind to the existing Backup Vault
-
-Bind to the defined Backup Policy
-
-Use the existing Snapshot Resource Group
-
-Enable cluster-scoped resource protection
-
-Enable volume snapshot capability
-
-Include all namespaces
-
-Include all Kubernetes resource types
-
-Include all Secrets
-
-Apply no exclusions
-
-Configuration expectations:
-
-excluded_namespaces              = []
-excluded_resource_types          = []
-included_namespaces              = ["*"]
-included_resource_types          = ["*"]
-label_selectors                  = []
-cluster_scoped_resources_enabled = true
-volume_snapshot_enabled          = true
-Security & RBAC Requirements
-
-The following permissions must be configured:
-
-1. Trusted Access Binding
-
-Bind Backup Vault to AKS cluster:
-
-Role: Microsoft.DataProtection/backupVaults/backup-operator
-
-Source: Backup Vault
-
-Target: AKS Cluster
-
-Purpose:
-Allow Backup Vault to operate on the AKS cluster.
-
-2. AKS Backup Extension Permissions
-
-Grant extension identity:
-
-Role: Storage Account Contributor
-
-Scope: Storage Account
-
-Purpose:
-Allow extension to write operational and metadata backup data.
-
-3. Backup Vault Managed Identity Permissions
-
-On AKS Cluster:
-
-Reader
-
-On Snapshot Resource Group:
-
-Reader
-
-Disk Snapshot Contributor
-
-Data Operator for Managed Disks
-
-On Storage Account:
-
-Storage Blob Data Contributor
-
-Purpose:
-
-Read cluster metadata
-
-Create and manage disk snapshots
-
-Write backup data to blob storage
-
-4. AKS Cluster Managed Identity Permission
-
-On Snapshot Resource Group:
-
-Contributor
-
-Purpose:
-Allow AKS to manage snapshot lifecycle during backup workflows.
-
-Implementation Constraints
-
-Root module only
-
-No child modules
-
-No dynamic logic required
-
-No conditional deployment
-
-Explicit depends_on where required
-
-Production-ready naming
-
-No exclusions configured
-
-Full cluster protection enforced
+aks_backup_policy:
+  - name: bp-bfhaks-ihub-eus2-poc-01
+    backup_vault: bv-bfhaks-ihub-eus2-poc-01
+    included_namespaces:
+      - '*'
+    included_resource_types:
+      - '*'
+    excluded_namespaces: []
+    excluded_resource_types: []
+    label_selectors: []
+
+aks_backup_instance:
+  - aks_cluster: aks-bfhaks-ihub-eus2-poc-01
+    backup_vault: bv-bfhaks-ihub-eus2-poc-01
+    backup_policy: bp-bfhaks-ihub-eus2-poc-01
+    storage_account: sasbfhaksihubpocbackup
+    snapshot_resource_group_name: rg-bfhaks-ihub-poc-eus2-dev-01
+    included_namespaces:
+      - '*'
+    included_resource_types:
+      - '*'
+    excluded_namespaces: []
+    excluded_resource_types: []
+    label_selectors: []
+    cluster_scoped_resources_enabled: true
+    volume_snapshot_enabled: true
+
+aks_backup_rbac:
+  enabled: true
