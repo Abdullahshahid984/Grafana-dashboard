@@ -1,9 +1,10 @@
-AKS Backup Implementation – Root Module Only
-Terraform Implementation Requirement
-AKS Backup Policy & Backup Instance Deployment
-1. Current State
+AKS Backup Implementation – Root Module Only (PoC Environment)
 
-The following Azure resources are already provisioned via Terraform in the root module:
+I am implementing AKS Backup in a Proof of Concept (PoC) environment using Terraform.
+
+Current State
+
+The following Azure resources are already provisioned in the root module only:
 
 Azure Storage Account
 
@@ -17,10 +18,9 @@ AKS Backup Extension
 
 Snapshot Resource Group
 
-No child modules are used.
-All new resources must be defined in the root module.
+No child modules are used and none should be created.
 
-2. Objective
+Objective
 
 Deploy and configure:
 
@@ -28,60 +28,80 @@ AKS Backup Policy
 
 AKS Backup Instance
 
-The implementation must provide full-cluster protection using:
+The implementation must provide full-cluster protection with:
 
 Operational Tier backups
 
-Backup frequency: every 4 hours
+Backup frequency: every 4 hours (PT4H)
 
-Retention: 30 days
+Retention: 30 days (P30D)
 
-Full namespace and cluster-scoped coverage
+UTC time zone
+
+Full namespace protection
+
+All resource types included
+
+All Secrets included
+
+Cluster-scoped resources enabled
 
 Persistent volume snapshots enabled
 
-No exclusions must be configured.
+No exclusions configured
 
-3. Backup Policy Requirements
-Setting	Value
-Storage Tier	Operational
-Backup Interval	PT4H
-Retention	P30D
-Time Zone	UTC
-Cluster Scoped Support	Enabled
-Volume Snapshot	Enabled
+All resources must be implemented in the root module.
+
+Backup Policy Requirements
+
+The AKS Backup Policy must:
+
+Use Operational Tier
+
+Run every 4 hours (PT4H)
+
+Retain data for 30 days (P30D)
+
+Use UTC time zone
+
+Support cluster-scoped resources
+
+Support volume snapshot capability
 
 Expected Behavior:
 
-Backups run every 4 hours
+Backups run automatically every 4 hours
 
 Data retained for 30 days
 
-Compatible with namespaced + cluster-scoped resources
+Compatible with namespaced and cluster-scoped resources
 
-4. Backup Instance Requirements
+Backup Instance Requirements
 
 The Backup Instance must:
 
-Protect entire AKS cluster
+Protect the entire AKS cluster
 
-Bind to created Backup Vault
+Bind to the existing Backup Vault
 
-Use Snapshot Resource Group
+Bind to the defined Backup Policy
 
-Bind to defined Backup Policy
-
-Enable volume snapshot capability
+Use the existing Snapshot Resource Group
 
 Enable cluster-scoped resource protection
 
-Include all Secrets
+Enable volume snapshot capability
 
 Include all namespaces
 
-Include all resource types
+Include all Kubernetes resource types
 
-Configuration Expectations
+Include all Secrets
+
+Apply no exclusions
+
+Configuration expectations:
+
 excluded_namespaces              = []
 excluded_resource_types          = []
 included_namespaces              = ["*"]
@@ -89,18 +109,11 @@ included_resource_types          = ["*"]
 label_selectors                  = []
 cluster_scoped_resources_enabled = true
 volume_snapshot_enabled          = true
-Protection Scope
+Security & RBAC Requirements
 
-All namespaces
+The following permissions must be configured:
 
-All resource types (including Secrets)
-
-All cluster-scoped objects (CRDs, ClusterRoles, ClusterRoleBindings)
-
-All Persistent Volumes via Azure Disk snapshots
-
-5. Security & RBAC Requirements
-5.1 Trusted Access Binding
+1. Trusted Access Binding
 
 Bind Backup Vault to AKS cluster:
 
@@ -111,9 +124,9 @@ Source: Backup Vault
 Target: AKS Cluster
 
 Purpose:
-Allow Backup Vault to operate on AKS cluster.
+Allow Backup Vault to operate on the AKS cluster.
 
-5.2 AKS Backup Extension Permissions
+2. AKS Backup Extension Permissions
 
 Grant extension identity:
 
@@ -122,14 +135,15 @@ Role: Storage Account Contributor
 Scope: Storage Account
 
 Purpose:
-Allow extension to write backup metadata and operational data.
+Allow extension to write operational and metadata backup data.
 
-5.3 Backup Vault Managed Identity Permissions
-On AKS Cluster
+3. Backup Vault Managed Identity Permissions
+
+On AKS Cluster:
 
 Reader
 
-On Snapshot Resource Group
+On Snapshot Resource Group:
 
 Reader
 
@@ -137,7 +151,7 @@ Disk Snapshot Contributor
 
 Data Operator for Managed Disks
 
-On Storage Account
+On Storage Account:
 
 Storage Blob Data Contributor
 
@@ -149,128 +163,29 @@ Create and manage disk snapshots
 
 Write backup data to blob storage
 
-5.4 AKS Cluster Managed Identity Permission
+4. AKS Cluster Managed Identity Permission
 
 On Snapshot Resource Group:
 
 Contributor
 
 Purpose:
-Allow AKS to manage snapshot lifecycle during backup operations.
+Allow AKS to manage snapshot lifecycle during backup workflows.
 
-6. Updated Architecture Schema
-AKS Cluster
-   │
-   │ Trusted Access Binding
-   ▼
-Backup Vault (Azure Data Protection)
-   │
-   │ Uses
-   ▼
-Backup Policy (Operational Tier – PT4H – P30D)
-   │
-   ▼
-Backup Instance
-   │
-   ├── Protects all namespaces
-   ├── Protects cluster-scoped resources
-   ├── Includes all Secrets
-   └── Triggers Volume Snapshots
-            │
-            ▼
-Snapshot Resource Group
-            │
-            ▼
-Azure Disk Snapshots
-
-Backup Data
-   │
-   ▼
-Storage Account (Blob Container)
-7. Updated poc-conf.yaml
-environment: poc
-
-aks_backup:
-  enabled: true
-
-  policy:
-    name: aks-operational-4h-policy
-    storage_tier: operational
-    backup_interval: PT4H
-    retention: P30D
-    time_zone: UTC
-
-  backup_instance:
-    protect_cluster: true
-    snapshot_resource_group: snap-rg
-    include:
-      namespaces: ["*"]
-      resource_types: ["*"]
-      cluster_scoped_resources: true
-      secrets: true
-      persistent_volumes: true
-    exclude:
-      namespaces: []
-      resource_types: []
-    label_selectors: []
-
-rbac:
-  trusted_access:
-    role: Microsoft.DataProtection/backupVaults/backup-operator
-
-  extension_permissions:
-    storage_role: Storage Account Contributor
-
-  vault_permissions:
-    cluster_role: Reader
-    snapshot_rg_roles:
-      - Reader
-      - Disk Snapshot Contributor
-      - Data Operator for Managed Disks
-    storage_role: Storage Blob Data Contributor
-
-  cluster_permissions:
-    snapshot_rg_role: Contributor
-8. Implementation Constraints
+Implementation Constraints
 
 Root module only
 
 No child modules
 
-No dynamic logic
+No dynamic logic required
 
-No conditional resources
+No conditional deployment
 
 Explicit depends_on where required
 
 Production-ready naming
 
-No exclusions
+No exclusions configured
 
-Full cluster protection enabled
-
-9. Expected Final Outcome
-
-After terraform apply:
-
-Backups run every 4 hours
-
-All namespaces protected
-
-All Secrets included
-
-All cluster-scoped resources protected
-
-Persistent volumes snapshotted
-
-Operational tier used
-
-30-day retention applied
-
-RBAC fully configured
-
-Trusted access properly bound
-
-No partial protection
-
-No exclusions
+Full cluster protection enforced
