@@ -1,2 +1,29 @@
+aks_backup_policy:
+  - name: bp-bfhaks-ihub-eus2-poc-01
+    backup_vault: bv-bfhaks-ihub-eus2-poc-01
+    included_namespaces:
+      - '*'
+    included_resource_types:
+      - '*'
+    excluded_namespaces: []
+    excluded_resource_types: []
+    label_selectors: []
+
+aks_backup_instance:
+  - aks_cluster: aks-bfhaks-ihub-eus2-poc-01
+    backup_vault: bv-bfhaks-ihub-eus2-poc-01
+    backup_policy: bp-bfhaks-ihub-eus2-poc-01
+    storage_account: sasbfhaksihubpocbackup
+    snapshot_resource_group_name: rg-bfhaks-ihub-poc-eus2-dev-01
+    included_namespaces:
+      - '*'
+    included_resource_types:
+      - '*'
+    excluded_namespaces: []
+    excluded_resource_types: []
+    label_selectors: []
+    cluster_scoped_resources_enabled: true
+    volume_snapshot_enabled: true
+
 aks_backup_rbac:
   enabled: true
