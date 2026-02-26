@@ -1,6 +1,9 @@
 aks_backup_rbac:
-  type: object
-  properties:
-    enabled:
-      type: boolean
-  additionalProperties: false
+    type: object
+    description: Enable or disable automatic RBAC configuration for AKS Backup
+    properties:
+      enabled:
+        type: boolean
+    required:
+      - enabled
+    additionalProperties: false
