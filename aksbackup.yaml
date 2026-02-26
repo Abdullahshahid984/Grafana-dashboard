@@ -1,9 +1,124 @@
-aks_backup_rbac:
-    type: object
-    description: Enable or disable automatic RBAC configuration for AKS Backup
-    properties:
-      enabled:
-        type: boolean
-    required:
-      - enabled
-    additionalProperties: false
+###############################################################################
+# AKS BACKUP RBAC CONFIGURATION
+###############################################################################
+
+locals {
+  # Read RBAC configuration from YAML (object with "enabled")
+  aks_backup_rbac_conf = lookup(local.conf, "aks_backup_rbac", {})
+
+  # Toggle to enable/disable RBAC creation
+  configure_backup_rbac = lookup(local.aks_backup_rbac_conf, "enabled", true)
+
+  # Build UNIQUE map of backup instances (prevents duplicate key errors)
+  aks_backup_instances = {
+    for idx, instance in local.aks_backup_instance_conf :
+    "${instance.aks_cluster}-${instance.backup_vault}-${idx}" => instance
+  }
+
+  # Build storage lookup map for blob role assignment
+  backup_instance_storage_map = {
+    for instance in local.aks_backup_instance_conf :
+    instance.aks_cluster => {
+      storage_account = instance.storage_account
+      backup_vault    = instance.backup_vault
+    }
+  }
+}
+
+###############################################################################
+# 1. Backup Vault → AKS Cluster (Backup Operator)
+###############################################################################
+
+resource "azurerm_role_assignment" "backup_vault_to_aks_backup_operator" {
+  for_each = local.configure_backup_rbac ? local.aks_backup_instances : {}
+
+  scope                = module.aks_cluster[each.value.aks_cluster].id
+  role_definition_name = "Kubernetes Cluster - Azure Backup Operator"
+  principal_id         = azurerm_data_protection_backup_vault.backup_vault[each.value.backup_vault].identity[0].principal_id
+
+  depends_on = [
+    azurerm_data_protection_backup_vault.backup_vault,
+    module.aks_cluster
+  ]
+}
+
+###############################################################################
+# 2. Backup Extension → Storage Account Contributor
+###############################################################################
+
+resource "azurerm_role_assignment" "backup_extension_storage_account_contributor" {
+  for_each = local.configure_backup_rbac ? local.aks_backup_extensions : {}
+
+  scope                = azurerm_storage_account.storage_account[each.value.storage_account].id
+  role_definition_name = "Storage Account Contributor"
+  principal_id         = azurerm_kubernetes_cluster_extension.aks_backup[each.key].identity[0].principal_id
+
+  depends_on = [
+    azurerm_kubernetes_cluster_extension.aks_backup,
+    azurerm_storage_account.storage_account
+  ]
+}
+
+###############################################################################
+# 3. Backup Vault Managed Identity Permissions
+###############################################################################
+
+# 3.1 Reader on AKS Cluster
+resource "azurerm_role_assignment" "backup_vault_aks_reader" {
+  for_each = local.configure_backup_rbac ? local.aks_backup_instances : {}
+
+  scope                = module.aks_cluster[each.value.aks_cluster].id
+  role_definition_name = "Reader"
+  principal_id         = azurerm_data_protection_backup_vault.backup_vault[each.value.backup_vault].identity[0].principal_id
+}
+
+# 3.2 Reader on Snapshot Resource Group
+resource "azurerm_role_assignment" "backup_vault_snapshot_rg_reader" {
+  for_each = local.configure_backup_rbac ? local.aks_backup_instances : {}
+
+  scope                = "/subscriptions/${local.conf.settings.subscription_id}/resourceGroups/${each.value.snapshot_resource_group_name}"
+  role_definition_name = "Reader"
+  principal_id         = azurerm_data_protection_backup_vault.backup_vault[each.value.backup_vault].identity[0].principal_id
+}
+
+# 3.3 Disk Snapshot Contributor on Snapshot Resource Group
+resource "azurerm_role_assignment" "backup_vault_snapshot_contributor" {
+  for_each = local.configure_backup_rbac ? local.aks_backup_instances : {}
+
+  scope                = "/subscriptions/${local.conf.settings.subscription_id}/resourceGroups/${each.value.snapshot_resource_group_name}"
+  role_definition_name = "Disk Snapshot Contributor"
+  principal_id         = azurerm_data_protection_backup_vault.backup_vault[each.value.backup_vault].identity[0].principal_id
+}
+
+# 3.4 Data Operator for Managed Disks
+resource "azurerm_role_assignment" "backup_vault_disk_operator" {
+  for_each = local.configure_backup_rbac ? local.aks_backup_instances : {}
+
+  scope                = "/subscriptions/${local.conf.settings.subscription_id}/resourceGroups/${each.value.snapshot_resource_group_name}"
+  role_definition_name = "Data Operator for Managed Disks"
+  principal_id         = azurerm_data_protection_backup_vault.backup_vault[each.value.backup_vault].identity[0].principal_id
+}
+
+# 3.5 Storage Blob Data Contributor
+resource "azurerm_role_assignment" "backup_vault_storage_blob_contributor" {
+  for_each = local.configure_backup_rbac ? local.aks_backup_instances : {}
+
+  scope = azurerm_storage_account.storage_account[
+    local.backup_instance_storage_map[each.value.aks_cluster].storage_account
+  ].id
+
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = azurerm_data_protection_backup_vault.backup_vault[each.value.backup_vault].identity[0].principal_id
+}
+
+###############################################################################
+# 4. AKS Cluster Kubelet Identity → Snapshot RG Contributor
+###############################################################################
+
+resource "azurerm_role_assignment" "aks_cluster_snapshot_rg_contributor" {
+  for_each = local.configure_backup_rbac ? local.aks_backup_instances : {}
+
+  scope                = "/subscriptions/${local.conf.settings.subscription_id}/resourceGroups/${each.value.snapshot_resource_group_name}"
+  role_definition_name = "Contributor"
+  principal_id         = module.aks_cluster[each.value.aks_cluster].kubelet_identity[0].object_id
+}
