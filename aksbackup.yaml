@@ -1,29 +1,55 @@
-aks_backup_policy:
-  - name: bp-bfhaks-ihub-eus2-poc-01
-    backup_vault: bv-bfhaks-ihub-eus2-poc-01
-    included_namespaces:
-      - '*'
-    included_resource_types:
-      - '*'
-    excluded_namespaces: []
-    excluded_resource_types: []
-    label_selectors: []
+#!/bin/bash
 
-aks_backup_instance:
-  - aks_cluster: aks-bfhaks-ihub-eus2-poc-01
-    backup_vault: bv-bfhaks-ihub-eus2-poc-01
-    backup_policy: bp-bfhaks-ihub-eus2-poc-01
-    storage_account: sasbfhaksihubpocbackup
-    snapshot_resource_group_name: rg-bfhaks-ihub-poc-eus2-dev-01
-    included_namespaces:
-      - '*'
-    included_resource_types:
-      - '*'
-    excluded_namespaces: []
-    excluded_resource_types: []
-    label_selectors: []
-    cluster_scoped_resources_enabled: true
-    volume_snapshot_enabled: true
+set -e
 
-aks_backup_rbac:
-  enabled: true
+# Dependencies: yq, envsubst
+
+if test -z "$1"; then
+  echo "Usage: $0 PLATFORM_INSTANCE_DIR" 1>&2
+  echo ""
+  echo "Configures a terraform root module for a platform instance"
+  exit 1
+fi
+INSTANCE_ROOT=$(readlink -f "$1")
+
+INSTANCE_CONF="$INSTANCE_ROOT/conf.yaml"
+if test ! -f "$INSTANCE_CONF"; then
+  echo "instance config ($INSTANCE_CONF) not found" 1>&2
+  exit 1
+fi
+
+SCRIPT_ABS_PATH=$(readlink -f "$0")
+SCRIPT_DIR=$(dirname "$SCRIPT_ABS_PATH")
+PLATFORM_ROOT=$(dirname "$SCRIPT_DIR")
+
+MODULE_MAIN_ROOT="$PLATFORM_ROOT/terraform/modules/main"
+MODULE_POLICY_ROOT="$PLATFORM_ROOT/terraform/modules/policy"
+
+TERRAFORM_ROOT="$INSTANCE_ROOT/stages/terraform_main"
+
+mkdir -p "$TERRAFORM_ROOT"
+
+INSTANCE_BOILERPLATE_ROOT="$MODULE_MAIN_ROOT/instance_boilerplate"
+
+# Link is overwritten by terraform init -upgrade anyway
+cp "$INSTANCE_BOILERPLATE_ROOT/.terraform.lock.hcl" "$TERRAFORM_ROOT"
+
+WORKSPACE_YQ_PATH='.tfc_workspaces.main'
+export BFHAKS_WORKSPACE="$(yq "$WORKSPACE_YQ_PATH" < "$INSTANCE_CONF")"
+if test -z "$BFHAKS_WORKSPACE" -o "null" = "$BFHAKS_WORKSPACE"; then
+  echo "ERROR: yq did not find ($WORKSPACE_YQ_PATH) in ($INSTANCE_CONF)" 1>&2
+  exit 1
+fi
+cat "$INSTANCE_BOILERPLATE_ROOT/main.tf.tmpl" | envsubst '$BFHAKS_WORKSPACE' > "$TERRAFORM_ROOT/main.tf"
+
+(
+  cd "$TERRAFORM_ROOT"
+  ln -fs "$INSTANCE_CONF" .
+
+  # Link the primary modules so that Terraform Cloud runners will have them
+  ln -fs "$MODULE_MAIN_ROOT" .
+  ln -fs "$MODULE_POLICY_ROOT" .
+)
+
+echo "Terraform root module configured in ($TERRAFORM_ROOT). From there run:"
+echo "  terraform init/plan/apply as normal"
