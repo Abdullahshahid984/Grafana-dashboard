@@ -1,0 +1,157 @@
+ aks_backup_policy:
+    type: array
+    description: list of AKS Backup Policy definitions for configuring backup schedules and retention
+    items:
+      type: object
+      description: AKS Backup Policy definition
+      properties:
+        name:
+          type: string
+          description: Backup policy name
+        backup_vault:
+          type: string
+          description: Reference to the backup vault that owns this policy
+        excluded_namespaces:
+          type: array
+          description: (optional) List of namespaces to exclude from backup
+          items:
+            type: string
+            description: Kubernetes namespace name
+        excluded_resource_types:
+          type: array
+          description: (optional) List of Kubernetes resource types to exclude from backup
+          items:
+            type: string
+            description: Kubernetes resource type (e.g., Deployment, StatefulSet)
+        included_namespaces:
+          type: array
+          description: (optional) List of namespaces to include in backup (default all with *)
+          items:
+            type: string
+            description: Kubernetes namespace name or wildcard
+        included_resource_types:
+          type: array
+          description: (optional) List of Kubernetes resource types to include in backup (default all with *)
+          items:
+            type: string
+            description: Kubernetes resource type or wildcard
+        label_selectors:
+          type: array
+          description: (optional) List of Kubernetes label selectors for granular backup control
+          items:
+            type: string
+            description: Kubernetes label selector
+      required:
+        - name
+        - backup_vault
+      additionalProperties: false
+  aks_backup_instance:
+    type: array
+    description: list of AKS Backup Instance definitions to bind clusters to backup policies
+    items:
+      type: object
+      description: AKS Backup Instance definition
+      properties:
+        aks_cluster:
+          type: string
+          description: Reference to the AKS cluster to be protected
+        backup_vault:
+          type: string
+          description: Reference to the backup vault for this instance
+        backup_policy:
+          type: string
+          description: Reference to the backup policy for this instance
+        storage_account:
+          type: string
+          description: Storage account name for backup storage (required for extension)
+        snapshot_resource_group_name:
+          type: string
+          description: (optional) Resource group name for disk snapshots (defaults to main resource group)
+        excluded_namespaces:
+          type: array
+          description: (optional) List of namespaces to exclude from backup
+          items:
+            type: string
+            description: Kubernetes namespace name
+        excluded_resource_types:
+          type: array
+          description: (optional) List of Kubernetes resource types to exclude from backup
+          items:
+            type: string
+            description: Kubernetes resource type (e.g., Deployment, StatefulSet)
+        included_namespaces:
+          type: array
+          description: (optional) List of namespaces to include in backup (default all with *)
+          items:
+            type: string
+            description: Kubernetes namespace name or wildcard
+        included_resource_types:
+          type: array
+          description: (optional) List of Kubernetes resource types to include in backup (default all with *)
+          items:
+            type: string
+            description: Kubernetes resource type or wildcard
+        label_selectors:
+          type: array
+          description: (optional) List of Kubernetes label selectors for granular backup control
+          items:
+            type: string
+            description: Kubernetes label selector
+        cluster_scoped_resources_enabled:
+          type: boolean
+          description: (optional) Enable backup of cluster-scoped resources (default true)
+        volume_snapshot_enabled:
+          type: boolean
+          description: (optional) Enable backup of persistent volumes via snapshots (default true)
+      required:
+        - aks_cluster
+        - backup_vault
+        - backup_policy
+        - storage_account
+      additionalProperties: false
+  aks_backup_rbac:
+    type: object
+    description: (optional) AKS Backup RBAC configuration for security and permissions
+    properties:
+      enabled:
+        type: boolean
+        description: (optional) Enable automatic RBAC configuration for backup resources (default true)
+    additionalProperties: false
+  kubelet_identity:
+    type: array
+    description: list of kubelet identity definitions
+    items:
+      type: object
+      description: kubelet identity definition
+      properties:
+        name:
+          type: string
+          description: kubelet identity name
+        acrs:
+          type: array
+          description: list of ids or references to named acr items
+          items:
+            type: object
+            description: acr id
+            oneOf:
+              - properties:
+                  ref:
+                    type: string
+                    description: reference to a named acr
+                required:
+                  - ref
+                additionalProperties: false
+              - properties:
+                  name:
+                    type: string
+                    description: acr name
+                  id:
+                    type: string
+                    description: azure resource manager id of the acr
+                required:
+                  - name
+                  - id
+                additionalProperties: false
+      required:
+        - name
+      additionalProperties: false
