@@ -1,8 +1,2 @@
-  aks_backup_rbac:
-    type: object
-    description: (optional) AKS Backup RBAC configuration for security and permissions
-    properties:
-      enabled:
-        type: boolean
-        description: (optional) Enable automatic RBAC configuration for backup resources (default true)
-    additionalProperties: false
+aks_backup_rbac:
+  enabled: true
