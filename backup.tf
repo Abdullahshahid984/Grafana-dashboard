@@ -1,41 +1,49 @@
 locals {
-  aks_backup_policy_conf = lookup(local.conf, "aks_backup_policy", [])
-  aks_backup_policies = {
-    for policy in local.aks_backup_policy_conf : policy.name => {
-      name                    = policy.name
-      backup_vault_name       = azurerm_data_protection_backup_vault.backup_vault[policy.backup_vault].name
-      resource_group_name     = local.conf.settings.resource_group_name
-      excluded_namespaces     = lookup(policy, "excluded_namespaces", [])
-      excluded_resource_types = lookup(policy, "excluded_resource_types", [])
-      included_namespaces     = lookup(policy, "included_namespaces", ["*"])
-      included_resource_types = lookup(policy, "included_resource_types", ["*"])
-      label_selectors         = lookup(policy, "label_selectors", [])
+  aks_backup_instance_conf = lookup(local.conf, "aks_backup_instance", [])
+  aks_backup_instances = {
+    for instance in local.aks_backup_instance_conf : instance.aks_cluster => {
+      aks_cluster                   = instance.aks_cluster
+      backup_vault_id               = azurerm_data_protection_backup_vault.backup_vault[instance.backup_vault].id
+      backup_policy_id              = azurerm_data_protection_backup_policy_kubernetes_cluster.aks_backup_policy[instance.backup_policy].id
+      snapshot_resource_group_name  = lookup(instance, "snapshot_resource_group_name", local.conf.settings.resource_group_name)
+      excluded_namespaces           = lookup(instance, "excluded_namespaces", [])
+      excluded_resource_types       = lookup(instance, "excluded_resource_types", [])
+      included_namespaces           = lookup(instance, "included_namespaces", ["*"])
+      included_resource_types       = lookup(instance, "included_resource_types", ["*"])
+      label_selectors               = lookup(instance, "label_selectors", [])
+      cluster_scoped_resources      = lookup(instance, "cluster_scoped_resources_enabled", true)
+      volume_snapshot_enabled       = lookup(instance, "volume_snapshot_enabled", true)
     }
   }
 }
 
-# AKS Backup Policy resource
-# Configures backup schedule and operational tier settings for AKS cluster protection
-resource "azurerm_data_protection_backup_policy_kubernetes_cluster" "aks_backup_policy" {
-  for_each = local.aks_backup_policies
+# AKS Backup Instance resource
+# Defines which AKS cluster is protected by which backup policy
+resource "azurerm_data_protection_backup_instance_kubernetes_cluster" "aks_backup_instance" {
+  for_each = local.aks_backup_instances
 
-  name                = each.value.name
-  vault_name          = each.value.backup_vault_name
-  resource_group_name = each.value.resource_group_name
+  name                        = "bi-${each.value.aks_cluster}"
+  location                    = local.conf.settings.location
+  vault_id                    = each.value.backup_vault_id
+  kubernetes_cluster_id       = module.aks_cluster[each.value.aks_cluster].id
+  backup_policy_id            = each.value.backup_policy_id
+  snapshot_resource_group_name = each.value.snapshot_resource_group_name
+  
 
-  # Backup schedule - every 4 hours starting at 04:00 UTC
-  backup_repeating_time_intervals = ["R/2026-01-01T04:00:00+00:00/PT4H"]
-  time_zone                       = "UTC"
-
-  # Default retention rule for operational tier backups
-  default_retention_rule {
-    life_cycle {
-      duration        = "P30D"
-      data_store_type = "OperationalStore"
-    }
+  backup_datasource_parameters {
+    excluded_namespaces           = each.value.excluded_namespaces
+    excluded_resource_types       = each.value.excluded_resource_types
+    included_namespaces           = each.value.included_namespaces
+    included_resource_types       = each.value.included_resource_types
+    label_selectors               = each.value.label_selectors
+    cluster_scoped_resources_enabled = each.value.cluster_scoped_resources
+    volume_snapshot_enabled       = each.value.volume_snapshot_enabled
   }
 
   depends_on = [
-    azurerm_data_protection_backup_vault.backup_vault
+    module.aks_cluster,
+    azurerm_data_protection_backup_vault.backup_vault,
+    azurerm_data_protection_backup_policy_kubernetes_cluster.aks_backup_policy,
+    azurerm_kubernetes_cluster_extension.aks_backup
   ]
 }
