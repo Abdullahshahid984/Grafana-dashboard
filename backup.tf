@@ -26,7 +26,6 @@ resource "azurerm_data_protection_backup_policy_kubernetes_cluster" "aks_backup_
   # Backup schedule - every 4 hours starting at 04:00 UTC
   backup_repeating_time_intervals = ["R/2026-01-01T04:00:00+00:00/PT4H"]
   time_zone                       = "UTC"
-  default_retention_duration      = "P30D"
 
   # Default retention rule for operational tier backups
   default_retention_rule {
