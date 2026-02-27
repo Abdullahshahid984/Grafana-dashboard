@@ -1,36 +1,10 @@
-locals {
-
-  backup_instances = {
-    for inst in lookup(local.conf, "backup_instance", []) :
-    inst.aks_cluster => {
-
-      aks_cluster   = inst.aks_cluster
-      backup_policy = inst.backup_policy
-
-      snapshot_rg_name = lookup(
-        inst,
-        "snapshot_resource_group_name",
-        null
-      )
-
-      backup_vault = lookup(
-        {
-          for p in lookup(local.conf, "backup_policy", []) :
-          p.name => p.backup_vault
-        },
-        inst.backup_policy,
-        null
-      )
-
-      storage_account = lookup(
-        {
-          for ext in lookup(local.conf, "aks_backup_extension", []) :
-          ext.aks_cluster => ext.storage_account
-        },
-        inst.aks_cluster,
-        null
-      )
-    }
+resource "azurerm_resource_group" "snapshot_rg" {
+  for_each = {
+    for k, v in local.backup_instances :
+    k => v
+    if v.snapshot_rg_name != null
   }
 
+  name     = each.value.snapshot_rg_name
+  location = local.conf.settings.location
 }
