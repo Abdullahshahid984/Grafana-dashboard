@@ -1,53 +1,12 @@
- backup_policy:
-    type: array
-    description: list of AKS backup policy definitions
-    items:
-      type: object
-      description: AKS backup policy definition
-      properties:
-        name:
-          type: string
-          description: backup policy name
-        backup_vault:
-          type: string
-          description: reference to a named backup_vault
-        backup_interval_hours:
-          type: integer
-          description: backup frequency in hours (e.g. 4)
-          minimum: 1
-        retention_days:
-          type: integer
-          description: retention duration in days
-          minimum: 1
-        time_zone:
-          type: string
-          description: time zone for backup schedule (e.g. "Pacific Standard Time")
-      required:
-        - name
-        - backup_vault
-        - backup_interval_hours
-        - retention_days
-      additionalProperties: false
-  backup_instance:
-    type: array
-    description: list of AKS backup instance definitions
-    items:
-      type: object
-      description: AKS backup instance definition
-      properties:
-        aks_cluster:
-          type: string
-          description: reference to a named aks_cluster
-        backup_policy:
-          type: string
-          description: reference to a named backup_policy
-        snapshot_resource_group_name:
-          type: string
-          description: (optional) override snapshot resource group
-        full_cluster_backup:
-          type: boolean
-          description: whether to back up all namespaces (default true)
-      required:
-        - aks_cluster
-        - backup_policy
-      additionalProperties: false
+backup_policy:
+  - name: aks-4hour-policy
+    backup_vault: bv-bfhaks-ihub-eus2-poc-01
+    backup_interval_hours: 4
+    retention_days: 30
+    time_zone: UTC
+
+backup_instance:
+  - aks_cluster: aks-bfhaks-ihub-eus2-poc-01
+    backup_policy: aks-4hour-policy
+    snapshot_resource_group_name: rg-bfhaks-ihub-poc-eus2-snapshots
+    full_cluster_backup: true
