@@ -1,3 +1,23 @@
+ # ---------------------------------------------------------------------------
+ # STORAGE ACCOUNT
+ # ---------------------------------------------------------------------------
+  storage_account_conf = lookup(local.conf, "storage_account", [])
+  storage_accounts = {
+    for storage_account in local.storage_account_conf : storage_account.name => storage_account
+  }
+
+ # ---------------------------------------------------------------------------
+ # STORAGE CONTAINER
+ # ---------------------------------------------------------------------------
+
+   storage_accounts_with_containers = {
+    for sa_name, sa_config in local.storage_accounts :
+    sa_name => sa_config
+    if lookup(sa_config, "container", null) != null
+  } 
+
+
+
 ################################################################################
 # Storgage Account
 ################################################################################
