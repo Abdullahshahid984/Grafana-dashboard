@@ -1,7 +1,12 @@
 ################################################################################
-# DATA SOURCES
+# BACKUP VAULT LOCK
 ################################################################################
 
-data "azurerm_resource_group" "snapshot_rg" {
-  name = local.conf.settings.resource_group_name
+resource "azurerm_management_lock" "backup_vault_lock" {
+  for_each = azurerm_data_protection_backup_vault.backup_vault
+
+  name       = "lock-${each.key}"
+  scope      = each.value.id
+  lock_level = "CanNotDelete"
+  notes      = "Backup vault lock — deletion requires explicit lock removal."
 }
