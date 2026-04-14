@@ -4,7 +4,7 @@ resource "azurerm_role_assignment" "aks_cluster_contributor_on_snapshot_rg" {
 
   scope                = data.azurerm_resource_group.snapshot_rg.id
   role_definition_name = "Contributor"
-  principal_id         = module.aks_cluster[each.key].kubelet_identity[0].object_id
+  principal_id         = module.aks_cluster[each.key].identity[0].principal_id
 }
 
 # Reader on snapshot RG — required by Backup Vault managed identity
