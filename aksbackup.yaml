@@ -1,6 +1,7 @@
-istio:
-  injection: true
-  extra_gateway_hosts:
-    - instance: ihub-dev-eus2
-      hosts:
-        - "catools-dev.breadfinancial.com"
+extra_sans:                     
+            type: array
+            description: >
+               Additional custom domain SANs to include in the TLS certificate beyond the default ingress subdomain wildcard.
+            items:
+              type: string
+              description: Fully qualified domain name to add as a certificate SAN
