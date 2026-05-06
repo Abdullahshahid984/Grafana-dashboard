@@ -1,12 +1,20 @@
-backup_policy:
-  - name: aks-4hour-policy
-    backup_vault: bv-bfhaks-ihub-eus2-poc-01
-    backup_interval_hours: 4
-    retention_days: 30
-    time_zone: UTC
-
-backup_instance:
-  - aks_cluster: aks-bfhaks-ihub-eus2-poc-01
-    backup_policy: aks-4hour-policy
-    snapshot_resource_group_name: rg-bfhaks-ihub-poc-eus2-snapshots
-    full_cluster_backup: true
+extra_gateway_hosts:                        # ← add this block
+        type: array
+        description: >
+          Additional custom hostnames to include in the shared Istio ingress
+          gateway for this workload, scoped per platform instance.
+        items:
+          type: object
+          properties:
+            instance:
+              type: string
+              description: Platform instance name (e.g. "ihub-dev-eus2")
+            hosts:
+              type: array
+              items:
+                type: string
+              description: List of custom FQDNs to add to the gateway
+          required:
+            - instance
+            - hosts
+          additionalProperties: false
