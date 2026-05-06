@@ -1,20 +1,6 @@
-extra_gateway_hosts:                       
-        type: array
-        description: >
-          Additional custom hostnames to include in the shared Istio ingress
-          gateway for this workload, scoped per platform instance.
-        items:
-          type: object
-          properties:
-            instance:
-              type: string
-              description: Platform instance name (e.g. "ihub-dev-eus2")
-            hosts:
-              type: array
-              items:
-                type: string
-              description: List of custom FQDNs to add to the gateway
-          required:
-            - instance
-            - hosts
-          additionalProperties: false
+istio:
+  injection: true
+  extra_gateway_hosts:
+    - instance: ihub-dev-eus2
+      hosts:
+        - "catools-dev.breadfinancial.com"
