@@ -1,4 +1,4 @@
-extra_gateway_hosts:                        # ← add this block
+extra_gateway_hosts:                       
         type: array
         description: >
           Additional custom hostnames to include in the shared Istio ingress
