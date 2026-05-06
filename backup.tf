@@ -1,5 +1,19 @@
-import {
-  to = module.bfhaksplatform.azurerm_role_assignment.cluster_contributor_on_snap_rg["aks-bfhaks-ihub-eus2-poc-01"]
+_auto_gateway_hosts = [
+    for k, v in local.workloads_that_target_this_instance :
+    "${k}/${k}.${local.istio_ingress_subdomain}"
+  ]
 
-  id = "/subscriptions/<SUBSCRIPTION_ID>/providers/Microsoft.Authorization/roleAssignments/fd2d7c2f-d569-5e0e-80cc-86341a55a49"
-}
+  # Custom hosts declared per-workload, filtered to this instance only
+  _extra_gateway_hosts = flatten([
+    for k, v in local.workloads_that_target_this_instance :
+    try(
+      [
+        for entry in v.istio.extra_gateway_hosts :
+        entry.hosts
+        if entry.instance == var.bfhaks_instance_name
+      ],
+      []
+    )
+  ])
+  
+  istio_gateway_hosts = concat(local._auto_gateway_hosts, local._extra_gateway_hosts)
