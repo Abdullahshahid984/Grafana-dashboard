@@ -1,8 +1,2 @@
 extra_sans:
-  type: array
-  description: >
-    Additional custom domain SANs to include in the TLS certificate
-    beyond the default ingress subdomain wildcard.
-  items:
-    type: string
-    description: Fully qualified domain name to add as a certificate SAN
+  - catools-dev.breadfinancial.com
