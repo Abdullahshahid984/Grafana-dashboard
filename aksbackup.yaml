@@ -1,3 +1,2 @@
-- name: keda-clustertriggerauthentication
-  client_id: dd8a9594-3c85-4227-9860-fe0074a56969
-  aks_cluster: aks-bfhaks-ihub-eus2-dev-rst-01
+- aks_cluster: aks-bfhaks-ihub-eus2-dev-rst-01
+  acr: acrbfhaksihubeus2dev02
