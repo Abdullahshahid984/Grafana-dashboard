@@ -1,2 +1,5 @@
-- aks_cluster: aks-bfhaks-ihub-eus2-dev-rst-01
-  acr: acrbfhaksihubeus2dev02
+- aks_cluster: aks-bfhaks-ihub-eus2-dev-rst-01      
+  acme_eab_key_id: 815ce839c8c36baf6c42e1578b3447db
+  ingress_subdomain: ihub-dev-rst-eus2.aks-ingress.breadfinancial.net
+  host_groups:
+  - ihub
