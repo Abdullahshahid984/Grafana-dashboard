@@ -1,11 +1,15 @@
-  echo -e "\ninstall cert-manager certificate:\n---"
-  EXTRA_SANS_JSON=$(echo "$INSTALL_TARGET" | yq -o json -I=0 '.extra_sans // []')
-
-  BASE=$(yq '
-    .spec.commonName = strenv(INGRESS_SUBDOMAIN)
-    | .spec.dnsNames = [strenv(INGRESS_SUBDOMAIN), "*."+strenv(INGRESS_SUBDOMAIN)]
-  ' < "$ROOTDIR/resources/certificate.yaml.tmpl")
-
-  echo "$BASE" | yq ".spec.dnsNames += $EXTRA_SANS_JSON" \
-    > "$STAGEDIR/resources/certificate.yaml"
-  cat "$STAGEDIR/resources/certificate.yaml"
+cat > /tmp/test_cert.sh << 'EOF'
+export ROOTDIR="/mnt/c/Users/a821069/ngemi/backup-instance-policy-rbac/AksPlatform/bfhaksplatform/istio-ingress-gateway"
+export STAGEDIR=$(mktemp -d)
+mkdir -p "$STAGEDIR/resources"
+export INSTALL_TARGET='{"aks_cluster":"aks-bfhaks-ihub-eus2-dev-01","acme_eab_key_id":"815ce839c8c36baf6c42e1578b3447db","ingress_subdomain":"ihub-dev-eus2.aks-ingress.breadfinancial.net","host_groups":["ihub"],"extra_sans":["catools-dev.breadfinancial.net"]}'
+export INGRESS_SUBDOMAIN=$(echo "$INSTALL_TARGET" | yq .ingress_subdomain)
+EXTRA_SANS_JSON=$(echo "$INSTALL_TARGET" | yq -o json -I=0 '.extra_sans // []')
+echo "EXTRA_SANS_JSON: $EXTRA_SANS_JSON"
+BASE=$(yq '
+  .spec.commonName = strenv(INGRESS_SUBDOMAIN)
+  | .spec.dnsNames = [strenv(INGRESS_SUBDOMAIN), "*."+strenv(INGRESS_SUBDOMAIN)]
+' < "$ROOTDIR/resources/certificate.yaml.tmpl")
+echo "$BASE" | yq ".spec.dnsNames += $EXTRA_SANS_JSON"
+EOF
+bash /tmp/test_cert.sh
