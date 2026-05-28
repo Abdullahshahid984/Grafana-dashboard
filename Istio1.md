@@ -78,9 +78,6 @@ istioctl authn tls-check <pod-name> <service>.<namespace>.svc.cluster.local
 kubectl get ns <namespace> --show-labels
 ```
 ```
-kubectl get pods -n <namespace> -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.metadata.annotations.sidecar\.istio\.io/status}{"\n"}{end}'
-```
-```
 kubectl get pods -n aks-istio-system
 ```
 ```
