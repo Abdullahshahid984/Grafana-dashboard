@@ -1,5 +1,13 @@
-- aks_cluster: aks-bfhaks-ihub-eus2-dev-rst-01      
-  acme_eab_key_id: 815ce839c8c36baf6c42e1578b3447db
-  ingress_subdomain: ihub-dev-rst-eus2.aks-ingress.breadfinancial.net
-  host_groups:
-  - ihub
+################################################################################
+#                      Restore Clusters (Backup & Restore)
+#
+# Map of restore cluster name => OIDC issuer URL.
+# Passed in from phase 02 after reading restore cluster data sources.
+# Empty map {} means no restore federated credentials will be created.
+################################################################################
+
+variable "restore_cluster_oidc_issuer_urls" {
+  type        = map(string)
+  description = "Map of restore cluster name => OIDC issuer URL. Empty map if no restore clusters are needed."
+  default     = {}
+}
