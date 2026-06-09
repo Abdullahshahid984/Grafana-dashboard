@@ -1,19 +1,37 @@
 ################################################################################
 #                      Restore Clusters (Backup & Restore)
 #
-# Dynamically reads OIDC issuer URLs for each restore cluster provided.
-# The for_each converts the restore_clusters list into a map keyed by
-# cluster name so Terraform can manage each cluster independently.
-# No resources are created when restore_clusters is empty [].
+# Optional: provide a list of clusters to automatically create federated
+# credentials for all workloads. This is needed because each AKS cluster has
+# a unique OIDC issuer URL. When workloads are restored to a new cluster via
+# Azure Backup, the existing federated credentials only cover the original
+# cluster. Adding clusters here ensures Entra ID accepts token exchange
+# requests, allowing pods to mount Key Vault secrets and start successfully.
+#
+# The variable name "restore_clusters" is the source of truth — any cluster
+# listed here will get federated credentials, regardless of its name.
+#
+# Usage:
+#   - Add cluster(s) before restore validation, remove after.
+#   - Supports multiple clusters simultaneously.
+#   - Leave as empty list [] when not in use. Zero impact on existing behavior.
+#
+# Example:
+#   restore_clusters = [
+#     {
+#       name                = "aks-bfhaks-ihub-eus2-dev-rst-01"
+#       resource_group_name = "rg-bfhaks-ihub-eus2-dev-01"
+#       purpose             = "restore"
+#     }
+#   ]
 ################################################################################
 
-data "azurerm_kubernetes_cluster" "restore_clusters" {
-  for_each            = { for c in var.restore_clusters : c.name => c }
-  name                = each.value.name
-  resource_group_name = each.value.resource_group_name != "" ? each.value.resource_group_name : local.bfhaks_instance_conf.settings.resource_group_name
+variable "restore_clusters" {
+  description = "List of clusters for backup/restore validation. Leave empty if not applicable."
+  type = list(object({
+    name                = string
+    resource_group_name = optional(string, "")
+    purpose             = optional(string, "restore") # e.g. restore, dr, backup, test
+  }))
+  default = []
 }
-
-
-# Pass restore cluster OIDC issuer URLs as a map (cluster name => oidc url).
-# Empty map {} when no restore clusters are defined.
-  restore_cluster_oidc_issuer_urls = { for k, v in data.azurerm_kubernetes_cluster.restore_clusters : k => v.oidc_issuer_url }
