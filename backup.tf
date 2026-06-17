@@ -1,37 +1,51 @@
+# phases/01-per-instance/locals.tf
+
+# line 22
+
+locals {
+  aks_clusters = [
+    for k, v in data.azurerm_kubernetes_cluster.aks : {
+      name = v.name
+      id   = v.id
+    }
+  ]
+
+  # Automatically derive excluded cluster names from conf.yaml.
+  # Clusters with exclude_prometheus_alerts: true will be skipped
+  # in Prometheus alert rule creation. Used for restore/validation clusters.
+  excluded_cluster_names = [
+    for c in local.bfhaks_instance_conf.aks_cluster : c.name
+    if try(c.exclude_prometheus_alerts, false) == true
+  ]
+}
+
+# phases/01-per-instance/main.tf
+# Add one line inside existing module "app_alerts" block:
+
+ excluded_cluster_names = local.excluded_cluster_names 
+
+```
+# modules/app_alerts/variables.tf
+# Add at the bottom
+
+```
 ################################################################################
-#                      Restore Clusters (Backup & Restore)
+#                      Excluded Clusters (Restore/Validation)
 #
-# Optional: provide a list of clusters to automatically create federated
-# credentials for all workloads. This is needed because each AKS cluster has
-# a unique OIDC issuer URL. When workloads are restored to a new cluster via
-# Azure Backup, the existing federated credentials only cover the original
-# cluster. Adding clusters here ensures Entra ID accepts token exchange
-# requests, allowing pods to mount Key Vault secrets and start successfully.
-#
-# The variable name "restore_clusters" is the source of truth — any cluster
-# listed here will get federated credentials, regardless of its name.
-#
-# Usage:
-#   - Add cluster(s) before restore validation, remove after.
-#   - Supports multiple clusters simultaneously.
-#   - Leave as empty list [] when not in use. Zero impact on existing behavior.
-#
-# Example:
-#   restore_clusters = [
-#     {
-#       name                = "aks-bfhaks-ihub-eus2-dev-rst-01"
-#       resource_group_name = "rg-bfhaks-ihub-eus2-dev-01"
-#       purpose             = "restore"
-#     }
-#   ]
+# List of AKS cluster names to exclude from Prometheus alert rule creation.
+# Derived from conf.yaml clusters with exclude_prometheus_alerts: true.
+# Leave empty [] for normal operation — zero impact on existing behavior.
 ################################################################################
 
-variable "restore_clusters" {
-  description = "List of clusters for backup/restore validation. Leave empty if not applicable."
-  type = list(object({
-    name                = string
-    resource_group_name = optional(string, "")
-    purpose             = optional(string, "restore") # e.g. restore, dr, backup, test
-  }))
-  default = []
+variable "excluded_cluster_names" {
+  description = "List of AKS cluster names to exclude from Prometheus alert rule creation."
+  type        = list(string)
+  default     = []
 }
+
+# modules/app_alerts/main.tf
+# Add if !contains(var.excluded_cluster_names, cluster.name) — only one line added inside the inner for loop:
+
+if !contains(var.excluded_cluster_names, cluster.name)
+
+
