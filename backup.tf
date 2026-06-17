@@ -1,7 +1,8 @@
+---
 # phases/01-per-instance/locals.tf
-
 # line 22
-
+---
+# Used for restore/validation clusters where Azure Backup restores resources
 locals {
   aks_clusters = [
     for k, v in data.azurerm_kubernetes_cluster.aks : {
@@ -19,16 +20,19 @@ locals {
   ]
 }
 
+---
 # phases/01-per-instance/main.tf
 # Add one line inside existing module "app_alerts" block:
+---
 
+# Used for restore/validation clusters where Azure Backup restores resources
  excluded_cluster_names = local.excluded_cluster_names 
 
 ```
 # modules/app_alerts/variables.tf
 # Add at the bottom
-
 ```
+
 ################################################################################
 #                      Excluded Clusters (Restore/Validation)
 #
@@ -43,9 +47,12 @@ variable "excluded_cluster_names" {
   default     = []
 }
 
+---
 # modules/app_alerts/main.tf
 # Add if !contains(var.excluded_cluster_names, cluster.name) — only one line added inside the inner for loop:
+---
 
+# Used for restore/validation clusters where Azure Backup restores resources
 if !contains(var.excluded_cluster_names, cluster.name)
 
 
