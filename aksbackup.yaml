@@ -6,3 +6,7 @@
             (optional) exclude this cluster from Prometheus alert rule creation.
             Set to true for restore/validation clusters to avoid conflicts with
             Azure Backup restored resources. Defaults to false.
+
+
+# conf.yaml file of dev cluster
+exclude_prometheus_alerts: true
