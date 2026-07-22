@@ -1,12 +1,22 @@
-#schema file need to be update at line 943
-        
-        exclude_prometheus_alerts:
-           type: boolean
-           description: >
-            (optional) exclude this cluster from Prometheus alert rule creation.
-            Set to true for restore/validation clusters to avoid conflicts with
-            Azure Backup restored resources. Defaults to false.
-
-
-# conf.yaml file of dev cluster
-exclude_prometheus_alerts: true
+@"
+apiVersion: v1
+kind: Pod
+metadata:
+  name: curltest
+  namespace: api-cims-v1
+spec:
+  automountServiceAccountToken: false
+  containers:
+  - name: curltest
+    image: curlimages/curl:latest
+    command: ["sleep", "3600"]
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+        - ALL
+  restartPolicy: Never
+"@ | Out-File -FilePath curltest.yaml -Encoding utf8
