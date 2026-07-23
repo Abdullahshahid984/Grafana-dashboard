@@ -1,5 +1,7 @@
-dependencies
-| where target contains "kanasmc"
-| project timestamp, cloud_RoleName, cloud_RoleInstance, name, resultCode, operation_Name, operation_Id
-| order by timestamp desc
-| take 20
+curl -X POST "https://apim-ads-eus2-entbusops-nonprd-uat-001.apim.alldata.net/v1/letters/generate" \
+  -H "Ocp-Apim-Subscription-Key: <subscription-key>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sample": "payload"
+  }' \
+  -v
