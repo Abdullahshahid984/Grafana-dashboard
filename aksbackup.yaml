@@ -1,9 +1,14 @@
 curl -X POST "https://apim-ads-eus2-entbusops-nonprd-uat-001.apim.alldata.net/v1/letters/generate" \
-  -H "Ocp-Apim-Subscription-Key: 763ac2c9fafb442d86522f8a208fb82" \
-  -H "Content-Type: application/json" \
-  -H "userid: a834545" \
-  -H "application-name: VCARS" \
-  -d '{
-    "sample": "payload"
-  }' \
-  -v
+-H "Ocp-Apim-Subscription-Key: 763ac2c9fafb442d86522f8a208fb8" \
+-H "Content-Type: application/json" \
+-H "userid: a834545" \
+-H "application-name: VCARS" \
+-d '{
+  "letterId": "1234",
+  "accountId": "123456789012345",
+  "pid": "AB1234567890123",
+  "addressFormatCode": "1",
+  "alternateAddressCountryCode": "US",
+  "alternateAddressSwitch": "0"
+}' \
+-v
