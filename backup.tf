@@ -1,58 +1,6 @@
----
-# phases/01-per-instance/locals.tf
-# line 22
----
-# Used for restore/validation clusters where Azure Backup restores resources
-locals {
-  aks_clusters = [
-    for k, v in data.azurerm_kubernetes_cluster.aks : {
-      name = v.name
-      id   = v.id
-    }
-  ]
+# import.tf
 
-  # Automatically derive excluded cluster names from conf.yaml.
-  # Clusters with exclude_prometheus_alerts: true will be skipped
-  # in Prometheus alert rule creation. Used for restore/validation clusters.
-  excluded_cluster_names = [
-    for c in local.bfhaks_instance_conf.aks_cluster : c.name
-    if try(c.exclude_prometheus_alerts, false) == true
-  ]
+import {
+  to = module.bfhaksplatform.azurerm_role_assignment.cluster_contributor_on_snap_rg
+  id = "/subscriptions/1fd4eaa2-e0f5-4e47-a395-12bad3a0cd73/resourcegroups/rg-bfhaks-ihub-poc-eus2-dev-01/providers/Microsoft.Authorization/roleAssignments/fd2d7c2f-d569-5e0e-80cc-c86341a55a49"
 }
-
----
-# phases/01-per-instance/main.tf
-# Add one line inside existing module "app_alerts" block:
----
-
-# Used for restore/validation clusters where Azure Backup restores resources
- excluded_cluster_names = local.excluded_cluster_names 
-
-```
-# modules/app_alerts/variables.tf
-# Add at the bottom
-```
-
-################################################################################
-#                      Excluded Clusters (Restore/Validation)
-#
-# List of AKS cluster names to exclude from Prometheus alert rule creation.
-# Derived from conf.yaml clusters with exclude_prometheus_alerts: true.
-# Leave empty [] for normal operation — zero impact on existing behavior.
-################################################################################
-
-variable "excluded_cluster_names" {
-  description = "List of AKS cluster names to exclude from Prometheus alert rule creation."
-  type        = list(string)
-  default     = []
-}
-
----
-# modules/app_alerts/main.tf
-# Add if !contains(var.excluded_cluster_names, cluster.name) — only one line added inside the inner for loop:
----
-
-# Used for restore/validation clusters where Azure Backup restores resources
-if !contains(var.excluded_cluster_names, cluster.name)
-
-
