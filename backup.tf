@@ -1,7 +1,20 @@
-# Pass additional cluster OIDC issuer URLs as a map (cluster key => oidc url).
-  # The kubernetes_resources module uses this to create federated credentials
-  # for each workload component on each additional cluster.
-  # Empty map {} when no additional clusters are defined — zero impact.
-  additional_cluster_oidc_issuer_urls = {
-    for k, v in data.azurerm_kubernetes_cluster.additional_clusters : k => v.oidc_issuer_url
-  }
+################################################################################
+#                      Additional Clusters (OIDC)
+#
+# Purpose:
+#   Accepts a map of cluster key => OIDC issuer URL for additional clusters
+#   that need Workload Identity federated credentials. Passed from phase 02
+#   after reading the additional cluster data sources.
+#
+#   When empty {} no additional federated credentials are created and
+#   existing behavior is completely unchanged.
+#
+#   Credential naming format: "<sa-name>-<cluster-key>"
+#   Example: "sa-api-customerlookup-v1-poc-02"
+################################################################################
+
+variable "additional_cluster_oidc_issuer_urls" {
+  type        = map(string)
+  description = "Map of cluster key => OIDC issuer URL for additional clusters that need federated credentials. Empty map if not applicable."
+  default     = {}
+}
