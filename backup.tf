@@ -1,17 +1,7 @@
-################################################################################
-#                      Additional Clusters (OIDC)
-#
-# Purpose:
-#   Reads the OIDC issuer URL for each additional cluster provided in the
-#   additional_clusters variable. The OIDC issuer URL is unique per cluster
-#   and is required to create the federated credential on the Managed Identity.
-#   Only created when additional_clusters is non-empty.
-#   Results are passed to the kubernetes_resources module as a map of
-#   cluster key => OIDC issuer URL.
-################################################################################
-
-data "azurerm_kubernetes_cluster" "additional_clusters" {
-  for_each            = var.additional_clusters
-  name                = each.value.name
-  resource_group_name = each.value.resource_group_name
-}
+# Pass additional cluster OIDC issuer URLs as a map (cluster key => oidc url).
+  # The kubernetes_resources module uses this to create federated credentials
+  # for each workload component on each additional cluster.
+  # Empty map {} when no additional clusters are defined — zero impact.
+  additional_cluster_oidc_issuer_urls = {
+    for k, v in data.azurerm_kubernetes_cluster.additional_clusters : k => v.oidc_issuer_url
+  }
