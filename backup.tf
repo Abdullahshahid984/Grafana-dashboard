@@ -1,65 +1,63 @@
 ################################################################################
-#   Identity: Federated Credential (Additional Clusters)
+#                    Additional Clusters (Restore Target)
 #
-# Purpose:
-#   Creates one Workload Identity federated credential per workload component
-#   per additional cluster. Allows workloads to authenticate to Azure services
-#   (Key Vault, Storage etc.) using Workload Identity when running on a cluster
-#   other than the primary cluster.
+# PURPOSE:
+#   Automatically create federated credentials on the restore target cluster
+#   so that restored workloads can authenticate to Azure (Workload Identity).
 #
-# Why this is needed:
-#   Each AKS cluster has a unique OIDC issuer URL. Entra ID validates the
-#   OIDC issuer in the token against registered federated credentials on the
-#   Managed Identity. If the issuer does not match, Entra ID rejects the token
-#   exchange with AADSTS700211 and pods get stuck in Init state because CSI
-#   Secret Store cannot mount Key Vault secrets.
+# CURRENT MAPPINGS:
+#   - DEV to POC2: Backup/restore validation (active)
 #
-# Supported scenarios:
-#   - DEV    to POC-02       (backup/restore validation)
-#   - SIT    to new SIT      (cluster migration)
-#   - UAT    to new UAT      (cluster migration)
-#   - PERF   to new PERF     (cluster migration)
-#   - PROD EUS2 to new PROD  (DR/migration)
-#   - PRD CUS   to new PRD   (DR/migration)
+# FUTURE MAPPINGS (add when clusters are created):
+#   - PRD EUS2 to DR EUS2: Disaster recovery
+#   - PRD CUS to DR CUS: Disaster recovery
 #
-# How it works:
-#   Flattens additional_cluster_oidc_issuer_urls x computed_component_map
-#   into a single for_each map. Each combination of cluster and workload
-#   component gets its own federated credential resource.
+# TO ADD NEW RESTORE MAPPING:
+#   1. When DR clusters are created, add entry here
+#   2. Key: environment name (prd-eus2, prd-cus, sit, uat, perf)
+#   3. Value: cluster key, name, resource group
+#   4. Redeploy Terraform
 #
-#   Key format:      "<cluster-key>-<component-key>"  ensures uniqueness
-#   Credential name: "<sa-name>-<cluster-key>"        easy identification
-#
-#   Only creates credentials for components where workload_identity = true.
-#   No resources created when additional_cluster_oidc_issuer_urls is empty {}.
-#   Does not affect the original cluster federated credential in any way.
-#
-# Cleanup:
-#   Remove cluster from additional_clusters in HCP Terraform workspace
-#   and re-apply. Terraform destroys all related federated credentials
-#   cleanly without touching the primary cluster federated credential.
+# DEPLOYMENT FLOW:
+#   Pipeline runs for dev stage
+#   → Detects environment = "dev"
+#   → restore_target = POC2 cluster config
+#   → Data source queries POC2 OIDC issuer
+#   → kubernetes_resources module creates federated credentials
+#   → Restored workloads can authenticate to Azure
 ################################################################################
 
-resource "azurerm_federated_identity_credential" "workload_identity_additional" {
-  for_each = {
-    for pair in flatten([
-      for cluster_key, oidc_url in var.additional_cluster_oidc_issuer_urls : [
-        for k, v in local.computed_component_map : {
-          key           = "${cluster_key}-${k}"  # unique key per cluster+component
-          cluster_key   = cluster_key
-          oidc_url      = oidc_url
-          component_key = k
-        }
-        if v.workload_identity == true  # only workload identity enabled components
-      ]
-    ]) : pair.key => pair
+locals {
+  # Restore cluster mapping by environment
+  # Only includes clusters that EXIST
+  # Add new entries when new restore clusters are provisioned
+  restore_cluster_mapping = {
+    "dev" = {
+      cluster_key         = "poc-02"
+      cluster_name        = "aks-bfhaks-ihub-eus2-poc-02"
+      resource_group_name = "rg-bfhaks-ihub-poc-eus2-dev-01"
+    }
   }
 
-  resource_group_name = var.managed_identity_resource_group_name
-  # Format: "<sa-name>-<cluster-key>" e.g. "sa-api-customerlookup-v1-poc-02"
-  name      = "${kubernetes_service_account_v1.workload_identity[each.value.component_key].metadata.0.name}-${each.value.cluster_key}"
-  parent_id = local.workload_identity_map[each.value.component_key].workload_identity.id
-  audience  = ["api://AzureADTokenExchange"]
-  issuer    = each.value.oidc_url  # additional cluster OIDC issuer URL
-  subject   = local.federated_credential_subject[each.value.component_key]
+  # Current environment (from conf.yaml)
+  current_env = local.bfhaks_instance_conf.settings.environment
+
+  # Get restore target cluster config for current environment
+  # If environment not in mapping, restore_target = {} (no additional clusters)
+  restore_target = contains(keys(local.restore_cluster_mapping), local.current_env) ? {
+    (local.restore_cluster_mapping[local.current_env].cluster_key) = {
+      name                = local.restore_cluster_mapping[local.current_env].cluster_name
+      resource_group_name = local.restore_cluster_mapping[local.current_env].resource_group_name
+    }
+  } : {}
+}
+
+# Data source: Query Azure for restore target cluster details
+# Returns the cluster's OIDC issuer URL
+# Only executes if restore_target map is not empty
+data "azurerm_kubernetes_cluster" "additional_clusters" {
+  for_each = local.restore_target
+
+  resource_group_name = each.value.resource_group_name
+  name                = each.value.name
 }
