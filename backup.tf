@@ -1,10 +1,3 @@
-locals {
-  aks_clusters = [
-    for k, v in data.azurerm_kubernetes_cluster.aks : {
-      name = v.name
-      id   = v.id
-    }
-  ]
 
   # AKS clusters that must be excluded from Prometheus alert rule-group
   # creation because the resources may already exist after an Azure Backup
