@@ -1,6 +1,5 @@
-        # Skip clusters in excluded_cluster_names list.
-        # Used to prevent Prometheus alert rule group creation for
-        # restore/validation clusters where Azure Backup has already
-        # restored the same rule groups causing "resource already exists" conflict.
-        # Zero impact when excluded_cluster_names is empty [].
-        if !contains(var.excluded_cluster_names, cluster.name)
+variable "excluded_cluster_names" {
+  description = "List of AKS cluster names to exclude from Prometheus alert rule group creation."
+  type        = list(string)
+  default     = []
+}
