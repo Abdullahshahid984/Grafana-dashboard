@@ -1,4 +1,8 @@
-import {
-  to = azurerm_dashboard_grafana.grafana
-  id = "/subscriptions/1fd4eaa2-e0f5-4e47-a395-12bad3a0cd73/resourceGroups/rg-bfhaks-ihub-eus2-dev-01/providers/Microsoft.Dashboard/grafana/bfhaksihubeus2dev01"
+variable "grafana_major_version" {
+  type = string
+  
+  validation {
+    condition     = contains(["10", "11", "12", "13"], var.grafana_major_version)
+    error_message = "Grafana major version must be 10, 11, 12, or 13."
+  }
 }
