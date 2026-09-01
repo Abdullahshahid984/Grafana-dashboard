@@ -1,8 +1,4 @@
-variable "grafana_major_version" {
-  type = string
-  
-  validation {
-    condition     = contains(["10", "11", "12", "13"], var.grafana_major_version)
-    error_message = "Grafana major version must be 10, 11, 12, or 13."
-  }
-}
+_auto_gateway_hosts = [
+    for k, v in local.workloads_that_target_this_instance :
+    "${k}/${k}.${coalesce(local.istio_ingress_subdomain, "skipped-ingress-validation")}"
+  ]
