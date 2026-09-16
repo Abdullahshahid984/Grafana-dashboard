@@ -1,4 +1,5 @@
-_auto_gateway_hosts = [
-    for k, v in local.workloads_that_target_this_instance :
-    "${k}/${k}.${coalesce(local.istio_ingress_subdomain, "skipped-ingress-validation")}"
-  ]
+variable "is_restore_cluster" {
+  type        = bool
+  description = "Set to true for restore/validation clusters (e.g., dev-rst). Enables cluster-specific RBAC naming."
+  default     = false
+}
