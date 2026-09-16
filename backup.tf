@@ -1,7 +1,13 @@
-CODE CHANGES (2 files):
-1. Phase 1 outputs.tf - Line 13
+locals {
+  restore_target_cluster_names = [
+    for c in local.bfhaks_instance_conf.aks_cluster : c.name
+    if can(regex(".*-rst-.*", c.name))
+  ]
 
-value = local.this_instance_cluster_names
-2. Phase 2 PowerShell - Line 40
-
-$cluster_names_json = terraform output -json aks_cluster_names_all
+  restore_target = {
+    for name in local.restore_target_cluster_names : name => {
+      name                = name
+      resource_group_name = local.bfhaks_instance_conf.settings.resource_group_name
+    }
+  }
+}
