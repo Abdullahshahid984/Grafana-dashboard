@@ -1,1 +1,5 @@
-name                = var.is_restore_cluster ? "${kubernetes_service_account_v1.workload_identity[each.key].metadata.0.name}-${var.bfhaks_instance_cluster_name}" : kubernetes_service_account_v1.workload_identity[each.key].metadata.0.name
+# Adding this variable for 409 conflict in backup/rst
+variable "bfhaks_instance_cluster_name" {
+  type        = string
+  description = "Name of the AKS cluster (used for unique federated credential naming on restore clusters)"
+}
