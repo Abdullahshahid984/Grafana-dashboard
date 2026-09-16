@@ -1,13 +1,3 @@
-locals {
-  restore_target_cluster_names = [
-    for c in local.bfhaks_instance_conf.aks_cluster : c.name
-    if can(regex(".*-rst-.*", c.name))
-  ]
-
-  restore_target = {
-    for name in local.restore_target_cluster_names : name => {
-      name                = name
-      resource_group_name = local.bfhaks_instance_conf.settings.resource_group_name
-    }
+  additional_cluster_oidc_issuer_urls = {
+    for k, v in data.azurerm_kubernetes_cluster.additional_clusters : k => v.oidc_issuer_url
   }
-}
