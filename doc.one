@@ -1,1 +1,465 @@
+AKS Backup & Restore — Operations Runbook
+Platform: BFH AKS / IHUB  |  Environments: dev → prod  |  Terraform modules: terraform/modules/main/backup.tf, workload-onboarding/
 
+Golden Path
+1.  Configure conf.yaml (cluster, storage, vault, policy, instance)
+2.  Terraform provisions AKS + backup infrastructure
+3.  Backup Policy runs automatically every 4 hours
+4.  Recovery point becomes available in the Backup Vault
+5.  Operator initiates restore (Azure Portal / CLI — not Terraform)
+6.  Restore cluster receives namespaces, service accounts, workloads
+7.  Workload onboarding pipeline runs for the ORIGINAL cluster
+8.  Pipeline discovers the *-rst-* cluster automatically from conf.yaml
+9.  Additional Federated Identity Credential (FIC) is created — additive only
+10. Restored pods authenticate via Workload Identity and are validated
+
+	[!TIP]
+	Key design principle: Restore-cluster Workload Identity is additive. The original federated credential on the source cluster is never modified, replaced, or removed.
+
+Table of Contents
+	1. Executive Overview
+	2. Complete End-to-End Flow
+	3. Terraform Code Structure — Backup Infrastructure
+	4. Prerequisites
+	5. Deployment
+	6. Running Backups
+	7. Restore Operations
+	8. Workload Identity Architecture for Restore Clusters
+	9. Operational Checklists
+	10. Troubleshooting Decision Trees
+	11. Known Issues & Lessons Learned
+
+1. Executive Overview
+Every AKS cluster in the IHUB platform is protected using Azure Backup for AKS (the Data Protection service), configured declaratively through the same Terraform that provisions the cluster itself. Adding backup coverage to a new cluster is a conf.yaml change, not a manual Portal setup.
+flowchart TD
+    A[Original AKS Cluster] --> B[Data Protection Extension]
+    B --> C[Backup Vault]
+    C --> D[Recovery Point]
+    D --> E[Restore Cluster]
+    E --> F[Workload Identity]
+    F --> G[Azure Entra ID]
+    G --> H[Azure Resources]
+	[!IMPORTANT]
+	Restore is not a Terraform resource. Terraform provisions the infrastructure and identity configuration required for restore validation; the restore job itself is triggered through Azure Portal or CLI.
+Five things a new engineer needs to understand:
+#	Concept	Summary
+1	How backups are created	AKS → Data Protection Extension → Backup Vault → Recovery Point
+2	How restore works	Recovery Point → Restore Cluster (Portal/CLI action)
+3	What Terraform owns	Infrastructure + Backup configuration + Workload Identity configuration
+4	What the operator owns	Selecting recovery point, initiating restore, monitoring, validation
+5	Why the additional FIC exists	Same Kubernetes subject + different OIDC issuer = additional federated credential
+
+2. Complete End-to-End Flow
+flowchart TD
+    A[conf.yaml] --> B[Terraform]
+    B --> C[AKS + Backup Infrastructure]
+    C --> D[Backup Policy]
+    D --> E[Backup Instance]
+    E --> F["Scheduled Backup (every 4h)"]
+    F --> G[Recovery Point]
+    G --> H[Operator Initiates Restore]
+    H --> I[Restore Cluster]
+    I --> J[Workload Onboarding Pipeline]
+    J --> K[Additional Federated Credential]
+    K --> L[Azure Authentication]
+    L --> M[Application Validation]
+This is the single flow that ties every section of this runbook together: sections 3–6 cover steps 1–6 (build and run backups), section 7 covers steps 6–8 (restore), and section 8 covers steps 7–10 (the identity mechanism that makes restored workloads actually work).
+
+3. Terraform Code Structure — Backup Infrastructure
+Everything lives in one flat module, bfhaksplatform/terraform/modules/main/backup.tf, driven entirely by the instance's conf.yaml. There is no dedicated variables.tf for backup — the inputs are YAML blocks decoded once into local.conf.
+Backup architecture
+flowchart TD
+    subgraph CLUSTER["AKS Cluster"]
+        K8S[Kubernetes Resources]
+        WL[Workloads]
+        EXT[Backup Extension]
+    end
+    EXT --> VAULT[Backup Vault]
+    VAULT --> POLICY[Backup Policy]
+    POLICY --> INSTANCE[Backup Instance]
+    INSTANCE --> RP[Recovery Points]
+Resource definitions
+Resource	What it does
+azurerm_storage_account	ZRS, Cool-tier blob storage per storage_account entry — the backup data landing zone. Public network access disabled, TLS 1.2 minimum, versioning + 7-day soft delete.
+azurerm_storage_container	Private blob container inside the storage account.
+azurerm_kubernetes_cluster_extension	Installs microsoft.dataprotection.kubernetes into the target cluster, pointed at the storage account/container.
+azurerm_data_protection_backup_vault	Zone-redundant vault, soft delete always-on, immutability locked, system-assigned identity.
+azurerm_management_lock	CanNotDelete lock applied to every vault.
+azurerm_data_protection_backup_policy_kubernetes_cluster	Defines schedule (every 4 hours) and retention. Named bp-<policy-name>.
+azurerm_data_protection_backup_instance_kubernetes_cluster	Binds cluster + vault + policy. Named bi-<cluster-name>. Cluster-scoped, no namespace/type filters by default.
+azurerm_kubernetes_cluster_trusted_access_role_binding	Grants the vault trusted access into the cluster with the backup-operator role.
+azurerm_role_assignment ×7	RBAC for the vault identity, the extension identity, and the cluster's own identity.
+Terraform dependency graph
+flowchart TD
+    AKS[AKS Cluster Module] --> EXT[Backup Extension]
+    SA[Storage Account] --> SC[Storage Container]
+    SC --> EXT
+    EXT --> INSTANCE[Backup Instance]
+    VAULT[Backup Vault] --> LOCK[Management Lock]
+    VAULT --> POLICY[Backup Policy]
+    POLICY --> INSTANCE
+    AKS --> INSTANCE
+    VAULT --> INSTANCE
+    INSTANCE --> TRUST[Trusted Access Role Binding]
+    VAULT --> RBAC["RBAC Role Assignments (x7)"]
+    INSTANCE --> RBAC
+	[!NOTE]
+	The AKS cluster module and its managed identities must already exist in the same Terraform graph — the backup module reads data.azurerm_user_assigned_identity.cluster_identity directly off the cluster's own conf entry.
+Key code — backup policy & instance
+The policy defines the 4-hour schedule and retention; the instance is what actually binds a specific cluster to that policy and vault:
+resource "azurerm_data_protection_backup_policy_kubernetes_cluster" "aks_policy" {
+  for_each             = local.backup_policies
+  name                 = "bp-${each.key}"
+  resource_group_name  = local.conf.settings.resource_group_name
+  vault_name           = each.value.vault_name
+# every 4 hours
+  backup_repeating_time_intervals = ["R/2026-01-01T00:00:00+00:00/PT4H"]
+default_retention_rule {
+    life_cycle {
+      duration        = "P${each.value.retention_days}D"
+      data_store_type = "OperationalStore"
+    }
+  }
+}
+resource "azurerm_data_protection_backup_instance_kubernetes_cluster" "aks_backup_instance" {
+  for_each                      = local.backup_instances
+  name                          = "bi-${each.key}"
+  vault_id                      = azurerm_data_protection_backup_vault.backup_vault[each.value.backup_vault].id
+  kubernetes_cluster_id         = module.aks_cluster[each.key].id
+  snapshot_resource_group_name  = data.azurerm_resource_group.snapshot_rg.name
+  backup_policy_id              = azurerm_data_protection_backup_policy_kubernetes_cluster.aks_policy[each.value.backup_policy].id
+backup_datasource_parameters {
+    cluster_scoped_resources_enabled = true
+    included_namespaces              = []
+    excluded_namespaces              = []
+  }
+}
+Inputs & outputs
+No dedicated variables — every input comes from these conf.yaml blocks, cross-referenced by name:
+conf.yaml block	Referenced by name from
+storage_account	—
+aks_backup_extension	aks_cluster + storage_account
+backup_vault	—
+backup_policy	backup_vault
+backup_instance	aks_cluster + backup_policy
+No dedicated outputs — this is a leaf module consumed only by the platform instance pipeline.
+
+4. Prerequisites
+Permissions / RBAC
+	• Owner, or Contributor + User Access Administrator, at the resource group scope — plain Contributor cannot create the role assignments this module manages.
+	• OIDC federation configured for the pipeline's service principal (ARM_USE_OIDC, ARM_CLIENT_ID, ARM_TENANT_ID).
+Azure resources that must already exist
+	• The target AKS cluster and its cluster/kubelet managed identities.
+	• The snapshot resource group — the instance's own settings.resource_group_name.
+	• tenant_id and subscription_id set under settings in conf.yaml.
+Terraform state
+	• Backup resources live in the same main TFC workspace as the rest of the platform instance — no separate backup-only workspace.
+conf.yaml entries required:
+storage_account:
+  - name: sasbfhaksihubdevbackup
+    container: blobaksdevbackup
+backup_vault:
+  - name: bv-bfhaks-ihub-eus2-dev-01
+aks_backup_extension:
+  - aks_cluster: aks-bfhaks-ihub-eus2-dev-01
+    backup_vault: bv-bfhaks-ihub-eus2-dev-01
+    storage_account: sasbfhaksihubdevbackup
+    storage_container: blobaksdevbackup
+backup_policy:
+  - name: aks-4h-backup-7d-retention
+    backup_vault: bv-bfhaks-ihub-eus2-dev-01
+backup_instance:
+  - aks_cluster: aks-bfhaks-ihub-eus2-dev-01
+    backup_policy: aks-4h-backup-7d-retention
+
+5. Deployment
+	1. Update conf.yaml — add/edit the storage_account, aks_backup_extension, backup_vault, backup_policy, and backup_instance blocks.
+	2. Run the platform pipeline (or plan locally) against the instance's main TFC workspace.
+	3. Review the plan — first run expects creates for the storage account/container, cluster extension, backup vault + lock, policy, instance, trusted access binding, and all 7 role assignments.
+	4. Apply.
+Validating the deployment:
+	• Extension health: kubectl get pods -n dataprotection-microsoft — pods should be Running.
+	• Azure Portal: Backup center → the vault should list the new Backup Instance with a healthy status.
+Common issues:
+	[!WARNING]
+	RBAC propagation delay — backup instance creation can fail validation moments after role assignments are created, since Azure AD propagation isn't instant. Re-run apply if this happens on the first pass.
+	[!WARNING]
+	Extension stuck provisioning — usually a network path issue. The storage account has public_network_access_enabled = false; confirm the cluster's outbound path can reach it.
+	[!WARNING]
+	Can't change vault settings — the CanNotDelete lock also blocks some vault-level immutable setting changes. Remove the lock first, then reapply.
+
+6. Running Backups
+Backups are not triggered manually day to day — the policy runs on its own schedule.
+Backup configuration
+Component	Configuration
+Schedule	Every 4 hours
+Non-Prod Retention	7 days
+Prod Retention	90 days
+Scope	Cluster scoped
+Extension	microsoft.dataprotection.kubernetes
+Triggering a manual backup:
+az dataprotection backup-instance adhoc-backup \
+  --resource-group <resource-group> \
+  --vault-name bv-bfhaks-ihub-eus2-dev-01 \
+  --backup-instance-name bi-aks-bfhaks-ihub-eus2-dev-01 \
+  --rule-name Default
+Or in the Portal: Backup center → select instance → Backup now.
+Verifying completion:
+	• Portal: Backup center → vault → Backup Instances → select instance → Jobs tab.
+	• CLI: az dataprotection job list --resource-group <rg> --vault-name <vault>
+Checking status in the Portal: search "Backup center" → Overview gives a vault-level summary across all protected instances, last backup status, and any failures.
+
+7. Restore Operations
+	[!IMPORTANT]
+	Restore is not a Terraform resource. There is no restore block in this codebase — restore is triggered operationally (Portal or CLI). Terraform's role is provisioning the target cluster and wiring up workload identity for it afterward.
+Restore architecture
+flowchart TD
+    SRC[Source Cluster] --> RP[Recovery Point]
+    RP --> RESTORE[Azure Backup Restore]
+    RESTORE --> TGT["Restore Cluster (separate from source)"]
+    TGT --> NS[Namespaces]
+    NS --> SVC[Service Accounts]
+    SVC --> WL[Workloads]
+Restore responsibility
+Activity	Terraform	Operator
+Create AKS	Yes	No
+Configure Backup	Yes	No
+Create Backup Policy	Yes	No
+Create Backup Instance	Yes	No
+Trigger Restore	No	Yes
+Select Recovery Point	No	Yes
+Validate Restore	No	Yes
+Configure Additional FIC	Yes	No
+Restore procedure
+	1. Open the recovery point — Backup center → vault → Backup Instance for the source cluster → Restore → pick the recovery point by timestamp.
+	2. Choose the target — restore in place on the same cluster, or (for validation) into a separate restore/validation cluster. The target must already be onboarded in conf.yaml's aks_cluster list with a name matching *-rst-* (e.g. aks-bfhaks-ihub-eus2-dev-rst-01).
+	3. Choose scope — cluster-scoped resources, specific namespaces, or resource types/label selectors.
+	4. Run the restore job — namespaces and their Kubernetes objects, including service accounts, land on the target cluster with identical names to the source.
+	5. Run the workload onboarding pipeline for the original cluster — not the restore cluster. Full mechanics in section 8.
+Restore sequence
+sequenceDiagram
+    participant OP as Operator
+    participant AB as Azure Backup
+    participant SRC as Source AKS (dev-01)
+    participant RST as Restore AKS (dev-rst-01)
+    participant WO as Workload Onboarding
+    participant AAD as Azure Entra ID
+    participant POD as Restored Pod
+OP->>AB: Select recovery point
+    AB->>RST: Restore Kubernetes resources
+    RST-->>RST: Namespaces + Service Accounts appear
+    WO->>SRC: Run pipeline for original cluster
+    WO->>WO: Discover *-rst-* cluster in conf.yaml
+    WO->>RST: Query OIDC issuer
+    WO->>AAD: Create additional Federated Credential
+    POD->>AAD: Request Azure AD token (subject + issuer B)
+    AAD->>AAD: Validate issuer + subject against FIC
+    AAD-->>POD: Issue token
+    POD->>AAD: Access Azure resource with token
+Validating restored data
+	• kubectl get pods -n <namespace> --context <restore-cluster> — pods should reach Running.
+	• Check pod logs for successful Azure token exchange — an AADSTS700211 error means the federated credential is missing or the issuer doesn't match.
+	• Confirm application-level data and state match what's expected for that recovery point.
+Rollback
+Because validation restores target a separate cluster by convention, there's normally nothing to roll back on the original — if validation fails, decommission or scale down the restore cluster.
+If a restore was performed in place on the original cluster (not recommended), rollback means re-running the restore job against an earlier known-good recovery point, or restoring individual namespace resources from a prior backup job rather than the whole cluster.
+
+8. Workload Identity Architecture for Restore Clusters
+This is the most important architectural concept in this document.
+Why an additional federated credential — not a replacement
+Azure Backup restores the Kubernetes namespace and service account onto the restore cluster with identical names to the source. The restored pod's identity subject is therefore exactly the same on both clusters — only the OIDC issuer differs, because each AKS cluster has its own.
+flowchart TD
+    SUBJ["Same Subject: system:serviceaccount:&lt;namespace&gt;:&lt;sa-name&gt;"]
+    SUBJ --> D01[dev-01]
+    SUBJ --> DRST[dev-rst-01]
+    D01 --> ISSA[OIDC Issuer A]
+    DRST --> ISSB[OIDC Issuer B]
+    ISSA --> FIC1["Federated Credential #1 (original)"]
+    ISSB --> FIC2["Federated Credential #2 (additional)"]
+    FIC1 --> MI[Same Managed Identity]
+    FIC2 --> MI
+    MI --> RES[Azure Resources]
+	[!TIP]
+	Key design principle: the subject stays the same. The OIDC issuer changes. Therefore the correct fix is an additional federated credential, not a replacement of the original.
+	[!CAUTION]
+	Never process a *-rst-* cluster as an independent Phase 2 workload-onboarding target when it shares the original workload identity model.
+Before — broken design
+Early implementations processed the restore cluster as its own independent cluster in the pipeline, sometimes sharing the same Terraform workspace/state as the original to avoid provisioning a new one. Kubernetes namespace, service account, and federated credential resources all resolve to the same Terraform resource address regardless of which cluster is being processed — so Terraform interpreted the two clusters as one resource repeatedly changing target.
+flowchart TD
+    D1[dev-01] --> SHARED["Same Phase 2 Workspace / State"]
+    D2[dev-rst-01] --> SHARED
+    SHARED --> ADDR[Same Terraform Resource Address]
+    ADDR --> NS[Namespace]
+    ADDR --> SA[Service Account]
+    ADDR --> FIC[Federated Credential]
+    NS --> REDIR[Resources redirected / replaced]
+    SA --> REDIR
+    FIC --> REDIR
+    REDIR --> IMPACT[Original cluster impacted]
+After — correct design
+The restore cluster is never looped over as its own Phase 2 target. The original cluster's run is completely unaffected; the restore cluster's federated credential is added as an extra resource within that same run.
+flowchart TD
+    D01[dev-01] --> STATE["dev-01's Own Phase 2 State"]
+    STATE --> NS["Namespace (unchanged)"]
+    STATE --> SA["Service Account (unchanged)"]
+    STATE --> FIC1["Federated Credential #1 (unchanged)"]
+DRST[dev-rst-01] --> BKP[Azure Backup Restore]
+    BKP --> ENS["Existing Namespace (restored)"]
+    BKP --> ESA["Existing Service Account (restored)"]
+    ESA --> ISSB[OIDC Issuer B]
+    ISSB --> FIC2["Federated Credential #2 (additive)"]
+    FIC1 --> MI[Same Managed Identity]
+    FIC2 --> MI
+	[!WARNING]
+	Terraform changes to federated credentials or RBAC can invalidate cached Managed Identity tokens on already-running pods. Restart affected workloads after such changes — see the MI Token Caching entry in section 11.
+Code changes, by file
+phases/01-per-instance/locals.tf — the cluster list used downstream now excludes RST clusters by regex, instead of a fragile hardcoded exclusion list:
+locals {
+  aks_clusters_all = [
+    for k, v in data.azurerm_kubernetes_cluster.aks : { name = v.name, id = v.id }
+  ]
+# Non-RST clusters only
+  aks_clusters = [
+    for cluster in local.aks_clusters_all :
+    cluster if !can(regex(".*-rst-.*", cluster.name))
+  ]
+}
+phases/01-per-instance/outputs.tf — the cluster-name output consumed by the Phase 2 loop reflects that same filtered list:
+output "aks_cluster_names" {
+  value = [for cluster in local.aks_clusters : cluster.name]
+}
+cicd/deploy/phase2_terraform_runs.ps1 — a plain loop; every cluster (including any future restore cluster, should it ever need one) gets its own dedicated workspace, no special-case redirect:
+foreach ($cluster_name in $aks_cluster_names) {
+    $tfc_workspace_phase2 = $tfc_workspace_phase1 -replace "phase1$", "phase2-$cluster_name"
+    $env:TF_WORKSPACE = $tfc_workspace_phase2
+    $env:TF_VAR_bfhaks_instance_cluster_name = $cluster_name
+    terraform init -no-color -input=false
+    terraform apply -no-color -input=false -auto-approve
+}
+phases/02-per-instance-per-cluster/main.tf — restore-cluster detection is dynamic, read straight from conf.yaml instead of a hardcoded per-environment map:
+locals {
+  restore_target_cluster_names = [
+    for c in local.bfhaks_instance_conf.aks_cluster : c.name
+    if can(regex(".*-rst-.*", c.name))
+  ]
+restore_target = {
+    for name in local.restore_target_cluster_names : name => {
+      name                = name
+      resource_group_name = local.bfhaks_instance_conf.settings.resource_group_name
+    }
+  }
+}
+data "azurerm_kubernetes_cluster" "additional_clusters" {
+  for_each             = local.restore_target
+  resource_group_name  = each.value.resource_group_name
+  name                 = each.value.name
+}
+Passed into the module:
+additional_cluster_oidc_issuer_urls = {
+  for k, v in data.azurerm_kubernetes_cluster.additional_clusters : k => v.oidc_issuer_url
+}
+modules/kubernetes-resources/locals.tf and main.tf — RBAC for_each and the main federated credential's name/subject are plain, unconditional expressions, since this module now only ever processes the original cluster directly. The pre-existing workload_identity_additional resource handles the restore cluster's credential:
+resource "azurerm_federated_identity_credential" "workload_identity_additional" {
+  for_each = {
+    for pair in flatten([
+      for cluster_key, oidc_url in var.additional_cluster_oidc_issuer_urls : [
+        for k, v in local.computed_component_map : {
+          key = "${cluster_key}-${k}", cluster_key = cluster_key, oidc_url = oidc_url, component_key = k
+        } if v.workload_identity == true
+      ]
+    ]) : pair.key => pair
+  }
+name      = "${kubernetes_service_account_v1.workload_identity[each.value.component_key].metadata.0.name}-${each.value.cluster_key}"
+  parent_id = local.workload_identity_map[each.value.component_key].workload_identity.id
+  audience  = ["api://AzureADTokenExchange"]
+  issuer    = each.value.oidc_url
+  subject   = local.federated_credential_subject[each.value.component_key]
+lifecycle { ignore_changes = all }
+}
+modules/app_alerts/main.tf — alert rule group naming checks each cluster individually inside the loop, instead of a single module-level flag that couldn't distinguish clusters within the same batch:
+name = "${type}-${name}-v${version}${can(regex(".*-rst-.*", each.value.cluster.name)) ? "-${each.value.cluster.name}" : ""}-AppAlerts"
+Result
+	Original cluster (dev-01)	Restore cluster (dev-rst-01)
+Terraform workspace	Own, unchanged	Never provisioned — no separate run
+Namespace / Service Account	Own, unchanged	Restored by Azure Backup, not Terraform
+RBAC	Own, unchanged	Not created (not needed for federated auth)
+Federated credential	sa-<workload>-v1, unchanged	sa-<workload>-v1-<rst-cluster-name>, added additively
+Alert rule group	Plain name, unchanged	Suffixed name, no collision
+This pattern is fully generic — any cluster matching *-rst-* in conf.yaml is picked up automatically, so the same logic covers sit-rst, uat-rst, etc. with zero additional code.
+
+9. Operational Checklists
+Pre-Deployment
+	• [ ] conf.yaml updated with storage_account, aks_backup_extension, backup_vault, backup_policy, backup_instance
+	• [ ] Target AKS cluster and its managed identities already exist
+	• [ ] Pipeline service principal has Owner or Contributor + User Access Administrator on the resource group
+	• [ ] TFC main workspace identified for the instance
+Backup Validation
+	• [ ] kubectl get pods -n dataprotection-microsoft shows extension pods Running
+	• [ ] Backup Vault visible in Backup center with healthy status
+	• [ ] Backup Instance shows at least one successful job
+	• [ ] Retention matches expected value for environment (7d non-prod / 90d prod)
+Pre-Restore
+	• [ ] Recovery point confirmed
+	• [ ] Restore target confirmed (in-place vs. *-rst-* validation cluster)
+	• [ ] Target cluster healthy and reachable
+	• [ ] Target cluster already listed in conf.yaml aks_cluster if it's a restore/validation cluster
+	• [ ] Required identities and role assignments verified on source
+Restore Execution
+	• [ ] Recovery point selected in Backup center
+	• [ ] Scope confirmed (cluster-scoped / namespace / resource type)
+	• [ ] Restore job started and monitored to completion
+	• [ ] Namespaces and service accounts confirmed present on target cluster
+Post-Restore Validation
+	• [ ] Workload onboarding pipeline run for the original cluster (not the restore cluster)
+	• [ ] Additional federated credential confirmed created on the Managed Identity
+	• [ ] kubectl get pods -n <namespace> --context <restore-cluster> shows pods Running
+	• [ ] Pod logs show no AADSTS700211 errors
+	• [ ] Application-level data/state validated against expected recovery point
+Production Incident
+	• [ ] Confirm whether the issue is backup-related or an unrelated application-level issue before escalating
+	• [ ] Check original cluster's RBAC and federated credentials are unaffected
+	• [ ] If Terraform recently touched federated credentials or RBAC, run kubectl rollout restart on affected workloads
+	• [ ] Capture recovery point timestamp and job ID for the incident record
+	• [ ] Document root cause and resolution in section 11 once closed
+
+10. Troubleshooting Decision Trees
+Backup failure
+flowchart TD
+    A[Backup failed] --> B[Check Backup Job in Portal]
+    B --> C{Extension healthy?}
+    C -->|No| D["Check dataprotection-microsoft pods"]
+    C -->|Yes| E{RBAC issue?}
+    E -->|Yes| F["Check vault / extension / snapshot RG role assignments"]
+    E -->|No| G{Network issue?}
+    G -->|Yes| H["Check private storage account connectivity"]
+    G -->|No| I["Review Azure Backup job error details"]
+Restore workload failure
+flowchart TD
+    A[Restored pod not healthy] --> B{Pod starting?}
+    B -->|"No - ImagePullBackOff"| C["Check ACR federated credential + AcrPull"]
+    B -->|"No - CrashLoop"| D{AADSTS700211 in logs?}
+    D -->|Yes| E["OIDC issuer mismatch - check additional FIC"]
+    D -->|No| F{CSI mount error?}
+    F -->|Yes| G["Check Key Vault CSI permissions on target vault"]
+    F -->|No| H{KEDA scaling error?}
+    H -->|Yes| I["Check ScaledObject metric source in restore cluster"]
+    H -->|No| J{Istio traffic error?}
+    J -->|Yes| K["Check Istio revision matches restore cluster"]
+    J -->|No| L[Proceed to application-level validation]
+    B -->|"Yes, Running"| L
+
+11. Known Issues & Lessons Learned
+Issue	Symptom	Root Cause	Resolution	Prevention
+Workload Identity OIDC Issuer Mismatch	AADSTS700211 on restored pods	Federated credential only trusted the original cluster's OIDC issuer	Pipeline detects the paired restore cluster automatically, queries its OIDC issuer, creates an additional federated credential trusting it	Always use the additive-FIC pattern (section 8) for any new restore cluster
+KEDA ScaledObject Conflicts	ScaledObjects fail to scale in restore cluster	CRDs referenced metric sources that don't exist in the restore environment	Rebuilt ScaledObjects with the restore cluster's actual metric endpoints	Review KEDA metric source config as part of restore validation
+CSI Secret Store Failures	Pods stuck on secret mount	Managed identities lacked Key Vault secret get/list permissions on the target vault	Granted proper secret permissions before restore, alongside RBAC/FIC work	Include Key Vault RBAC in the restore-cluster identity checklist
+ACR Image Pull Permission Issues	ImagePullBackOff on restored pods	AcrPull role assignments didn't follow managed identities to the restore cluster	Ensured federated credentials existed for all workloads before restore	Create federated credentials before triggering restore, not after
+Istio Revision Mismatches	Traffic routing failures via gateway/virtual service	Workload config pinned to DEV's Istio revision; restore cluster ran a different revision	Updated workload configs to reference the correct revision per environment	Validate Istio revision alignment as part of restore-cluster onboarding
+Backup Infra Setup — UserErrorMissingMSIPermissionsOnSnapshotResourceGroup	Backup Terraform apply fails on first setup	Snapshot-creating identity lacked the correct role on the snapshot resource group	Resolved correct principal ID via data source and assigned proper RBAC role	Confirm all 7 RBAC role assignments in backup.tf apply cleanly before first backup run
+Automount API Credentials Policy Blocking Backup Extension	Backup extension pods stuck in dataprotection-microsoft	Deny-effect Azure Policy blocked automounting API credentials cluster-wide, including the extension's own namespace	Added dataprotection-microsoft to excluded_namespaces in automount_api_credentials_disabled.tf	Keep system/extension namespaces in the policy's default exclusion list
+Terraform State Drift — upgrade_override	Next Terraform run fails after manual Azure CLI change	Manual CLI flag changes on POC-01/POC-02 caused state to diverge from reality	Added upgrade_override to lifecycle { ignore_changes } in the shared AKS module	Avoid manual Azure CLI changes to Terraform-managed attributes; if unavoidable, add to ignore_changes
+Grafana v11 Deprecation	Forced auto-upgrade risk after June 15, 2026	Standard SKU doesn't support v11 to begin with	Proactively upgraded to v12	Provision new Grafana instances on v12/v13 directly
+Federated Identity Credential 409 Conflicts (Phase 2, dev-rst)	Conflict: Issuer and subject combination already exists	Terraform repeatedly tried to recreate FICs that already existed	Resolved via the additive-FIC redesign (section 8) plus lifecycle { ignore_changes = all }	Never recreate an existing FIC; always add additional ones instead
+Harness Service Principal RBAC Gaps	Helm release history queries blocked during deployment	Rolebinding bound to the ServiceAccount only, not the service principal	Added the service principal under pipeline_identities with proper RBAC Writer role across environments	Verify pipeline identity RBAC when onboarding a new namespace
+MI Token Caching After RBAC Changes (Sep 11 — Critical)	HTTP 500 on startup for api-transactions, api-statements, api-pricing	Pods cached Managed Identity tokens issued while permissions were briefly revoked during a Terraform run	Added kubectl rollout restart to the Harness pipeline immediately after Terraform completes	Always restart affected workloads after any deployment that touches federated credentials or RBAC
+Configuration Drift Detection (Sep 4 vs. Present)	New feature deployments failing despite prior healthy state	Possible configuration drift or service principal rotation since last known-good state	Coordinated with DevOps team to validate and re-sync configuration	Periodically re-validate cluster configuration against known-good baselines
