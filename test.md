@@ -1,5 +1,5 @@
 ```
-git grep -l -i "transactions" -- "*.api.template.json"```
+git grep -l -i "transactions" -- "*.api.template.json"
 
 ```
 git grep -n -i '"path"' -- "*transactions*api.template.json"
