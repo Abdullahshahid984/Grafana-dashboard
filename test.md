@@ -1,6 +1,21 @@
+
+**1. See what files are inside:**
+```powershell
+Get-ChildItem "$HOME\Downloads\ReleaseLogs_25644\6_PERF" -Recurse -File | Select-Object FullName, Length
 ```
-az rest --method get --url "https://management.azure.com/subscriptions/8eaba5f3-47e8-4b82-82c4-b1877eca14c5/resourceGroups/rg-ads-cus-entbusops-perf-ext-apim-001/providers/Microsoft.ApiManagement/service/apim-ads-cus-entbusops-perf-ext-apim-001/tags/transactions?api-version=2022-08-01"
+
+**2. Search the PERF logs for the error and the resources Terraform tried to create:**
+```powershell
+Select-String -Path "$HOME\Downloads\ReleaseLogs_25644\6_PERF\*" -Pattern "already exists|Error:" -Context 0,6 -Recurse
 ```
+
+`Select-String` doesn't recurse by itself, so if step 1 shows nested folders, use this instead:
+```powershell
+Get-ChildItem "$HOME\Downloads\ReleaseLogs_25644\6_PERF" -Recurse -File | Select-String -Pattern "already exists|Error:" -Context 0,6
 ```
-az rest --method get --url "https://management.azure.com/subscriptions/8eaba5f3-47e8-4b82-82c4-b1877eca14c5/resourceGroups/rg-ads-cus-entbusops-perf-ext-apim-001/providers/Microsoft.ApiManagement/service/apim-ads-cus-entbusops-perf-ext-apim-001/tags/Start-a-Transaction?api-version=2022-08-01"
+
+**3. List every resource it wanted to create, and the plan summary:**
+```powershell
+Get-ChildItem "$HOME\Downloads\ReleaseLogs_25644\6_PERF" -Recurse -File | Select-String -Pattern "will be created|^.*Plan:" | Select-Object -ExpandProperty Line
 ```
+
