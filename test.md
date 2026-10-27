@@ -1,3 +1,1 @@
-```
-git grep -n -i -E "^ {0,4}/\S*transaction" -- "*.yml" "*.yaml"
-```
+foreach ($id in 'digitalapiaccount','digitalapirewards') { "== $id"; az apim api operation list --resource-group rg-ads-cus-entbusops-perf-ext-apim-001 --service-name apim-ads-cus-entbusops-perf-ext-apim-001 --api-id $id --subscription 8eaba5f3-47e8-4b82-82c4-b1877eca14c5 -o json | ConvertFrom-Json | Where-Object { $_.urlTemplate -match 'transaction' } | Select-Object method, urlTemplate, displayName | Format-Table -AutoSize }
