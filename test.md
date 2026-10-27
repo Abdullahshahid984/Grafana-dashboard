@@ -1,7 +1,7 @@
 ```
-git show origin/develop:APIM/diagnostics/applicationinsights/diagnosticConfig.yaml | Select-String -Pattern "^\s{0,6}[A-Za-z_-]+:\s*\S*$" | Where-Object { $_.Line -notmatch "headers_to_log" } | ForEach-Object { "$($_.LineNumber): $($_.Line)" }
+git show origin/develop:APIM/terraform/diagnostics.tf | Select-Object -First 130
 ```
 
 ```
-git grep -n -i "diagnosticConfig" origin/develop
+git show origin/develop:APIM/diagnostics/applicationinsights/diagnosticConfig.yaml | Select-Object -Skip 521 -First 60
 ```
