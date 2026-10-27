@@ -1,7 +1,3 @@
 ```
-git show origin/develop:APIM/terraform/diagnostics.tf | Select-Object -First 130
-```
-
-```
-git show origin/develop:APIM/diagnostics/applicationinsights/diagnosticConfig.yaml | Select-Object -Skip 521 -First 60
+az rest --method get --url "https://management.azure.com/subscriptions/cf7e12f8-ce8c-43c8-a1c0-1287d71499ca/resourceGroups/rg-ads-cus-entbusops-prd-ext-apim-001/providers/Microsoft.ApiManagement/service/apim-ads-cus-entbusops-prd-ext-apim-001/diagnostics/applicationinsights?api-version=2022-08-01" | Out-File "$HOME\prd-cus-diag-backup-2026-10-27.json" -Encoding utf8
 ```
