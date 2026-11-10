@@ -1,4 +1,3 @@
-backup_interval_hours:
-          type: integer
-          description: backup frequency in hours. Azure Backup for AKS supports 4, 8, 12 or 24
-          enum: [4, 8, 12, 24]
+        volume_snapshot_enabled:
+          type: boolean
+          description: (optional) take persistent volume snapshots, default false. Changing this replaces the backup instance
