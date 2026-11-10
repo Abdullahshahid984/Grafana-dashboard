@@ -1,3 +1,4 @@
-backup_snapshot_resource_group_name:
-        type: string
-        description: (optional) dedicated resource group for AKS backup snapshots, created by Terraform. Defaults to resource_group_name
+backup_interval_hours:
+          type: integer
+          description: backup frequency in hours. Azure Backup for AKS supports 4, 8, 12 or 24
+          enum: [4, 8, 12, 24]
