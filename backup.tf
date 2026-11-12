@@ -1,1 +1,1 @@
-  name                = "${each.value.workload.fundamentals.type}-${each.value.workload.fundamentals.name}-v${each.value.workload.fundamentals.major_version}${can(regex(".*-rst-.*", each.value.cluster.name)) ? "-${each.value.cluster.name}" : ""}-AppAlerts"
+  aks_clusters        = local.aks_clusters_all
