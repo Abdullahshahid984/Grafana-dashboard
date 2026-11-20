@@ -1,4 +1,7 @@
-
       backup_snapshot_resource_group_name:
         type: string
         description: (optional) dedicated resource group for AKS backup volume snapshots. Defaults to resource_group_name when not set
+
+        volume_snapshot_enabled:
+          type: boolean
+          description: (optional) take persistent volume snapshots, default false. Changing this replaces the backup instance
